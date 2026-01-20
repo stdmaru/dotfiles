@@ -8,65 +8,36 @@ import QtQuick
 Singleton {
     id: root
 
-    readonly property ListModel popup: ListModel {}
-    readonly property ListModel unread: ListModel {}
     readonly property ListModel all: ListModel {}
     
-    property bool preventPopupRemoval: false
     property bool doNotDisturb: false
+    property bool trayOpen: false
 
     component NotificationModel: QtObject {
         id: notificationObject
 
-        property int id;
-        property string image;
-        property string summary;
-        property string body;
-        property string appName;
-        property string appIcon;
-        property string desktopEntry;
-        property int urgency;
-        property bool hasActionIcons;
-        property bool hasInlineReply;
+        property int id
+        property string image
+        property string summary
+        property string body
+        property string appName
+        property string appIcon
+        property string desktopEntry
+        property int urgency
+        property bool hasActionIcons
+        property bool hasInlineReply
         property string inlineReplyPlaceholder
-        property bool lastGeneration;
-        property list<var> actions;
-        //property bool tracked;
-        property bool resident;
-        property var hints;
-        property real expireTimeout;
-        property bool justPopped: false
-
-        readonly property Timer timer: Timer {
-            running: true
-            interval: notificationObject.expireTimeout > 0 ? notificationObject.expireTimeout : 4_000
-            onTriggered: {
-                if(!root.preventPopupRemoval)
-                    notificationObject.removePopup()
-                else
-                    restart()
-            }
-        }
-
-        function removePopup() {
-            for (let i = 0; i < root.popup.count; i++) {
-                if (root.popup.get(i).modelData === this) {
-                    root.popup.remove(i)
-                    break
-                }
-            }
-        }
-
-        function removeUnread() {
-            for (let i = 0; i < root.unread.count; i++) {
-                if (root.unread.get(i).modelData === this) {
-                    root.unread.remove(i)
-                    break
-                }
-            }
-        }
+        property bool lastGeneration
+        property list<var> actions
+        property bool resident
+        property var hints
+        property real expireTimeout
+        property double createdAt
         
-        function remove() {
+        property bool isPopup: true
+        property bool isDeleted: false
+        
+        function remove(): void {
             for (let i = 0; i < root.all.count; i++) {
                 if (root.all.get(i).modelData === this) {
                     root.all.remove(i)
@@ -106,21 +77,35 @@ Singleton {
                 resident: n.resident,
                 hints: n.hints,
                 expireTimeout: n.expireTimeout,
-                justPopped: true
+                createdAt: Date.now(),
             })
             
-            root.popup.insert(0, { "modelData": notification })
-            root.unread.insert(0, { "modelData": notification })
             root.all.insert(0, { "modelData": notification })
         }
+    }
+
+    function init(): void {
+        console.info("Notification daemon started")
+    }
+
+    function hasPopup(): bool {
+        for (let i = 0; i < root.all.count; ++i) {
+            if (all.get(i).modelData.isPopup)
+                return true
+        }
+        return false
+    }
+
+    function hasUnread(): bool {
+        for (let i = 0; i < root.all.count; ++i) {
+            if (all.get(i).modelData.isDeleted === false)
+                return true
+        }
+        return false
     }
 
     Component {
         id: notificationModel
         NotificationModel{}
-    }
-
-    function init() {
-        console.info("Notification daemon started")
     }
 }

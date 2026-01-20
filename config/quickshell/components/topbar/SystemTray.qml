@@ -14,10 +14,8 @@ Row {
 
     anchors.verticalCenter: parent.verticalCenter
     spacing: 5
-    padding: {
-        left: 5
-        right: 5
-    }
+    leftPadding: 5
+    rightPadding: 5
 
     Repeater {
         model: SystemTray.items
@@ -30,7 +28,7 @@ Row {
             
             IconImage {
                 source: item.modelData.icon
-                implicitSize: 18
+                implicitSize: parent.height
             }
 
             Tooltip {
@@ -53,8 +51,6 @@ Row {
                         item.modelData.activate()
                     } else {
                         if (!item.modelData?.hasMenu) return;
-                        //const globalPos = mapToGlobal(Qt.point(mouseEvent.x, mouseEvent.y))
-                        //item.modelData.display(root.parentWindow, globalPos.x, globalPos.y)
                         const centerX = root.width / 2
                         const p = root.mapToItem(root.trayMenu, centerX, root.height)
                         root.trayMenu.open(item.modelData?.menu, p.x, p.y)

@@ -10,10 +10,10 @@ Rectangle {
     id: root
     
     required property PanelWindow parentWindow
+    property bool isOpen: false
     property real openX: 0
     property real openY: 0
-    property string menuState: "closed"
-
+    
     width: parentWindow.screen.width
     height: parentWindow.screen.height
 
@@ -40,7 +40,7 @@ Rectangle {
         states: [
             State {
                 name: "open"
-                when: root.menuState === "open"
+                when: root.isOpen
                 PropertyChanges {
                     target: menuContainer
                     opacity: 1
@@ -49,7 +49,7 @@ Rectangle {
             },
             State {
                 name: "closed"
-                when: root.menuState === "closed"
+                when: !root.isOpen
                 PropertyChanges {
                     target: menuContainer
                     opacity: 0
@@ -64,7 +64,7 @@ Rectangle {
                 to: "open"
 
                 ParallelAnimation {
-                    NumberAnimation { properties: "opacity"; from: 0; to: 1; duration: 100; easing.type: Easing.OutCubic }
+                    NumberAnimation { properties: "opacity"; from: 0; to: 1; duration: 100; easing.type: Easing.BezierSpline; easing.bezierCurve: [0.2, 0, 0, 1, 1, 1] }
                 }
             },
 
@@ -73,11 +73,11 @@ Rectangle {
                 to: "closed"
 
                 ParallelAnimation {
-                    NumberAnimation { properties: "opacity"; from: 1; to: 0; duration: 100; easing.type: Easing.InCubic }
+                    NumberAnimation { properties: "opacity"; from: 1; to: 0; duration: 100; easing.type: Easing.BezierSpline; easing.bezierCurve: [0.2, 0, 0, 1, 1, 1] }
                 }
 
                 onRunningChanged: {
-                    if (!running && root.menuState === "closed") {
+                    if (!running && !root.isOpen) {
                         menuContainer.visible = false
                         root.visible = false
                         menuStack.clear()
@@ -117,29 +117,29 @@ Rectangle {
 
             pushEnter: Transition {
                 ParallelAnimation {
-                    NumberAnimation { property: "x"; from: menuContainer.width; to: 0; duration: 200; easing.type: Easing.OutQuart }
-                    NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 200; }
+                    NumberAnimation { property: "x"; from: menuContainer.width; to: 0; duration: 400; easing.type: Easing.BezierSpline; easing.bezierCurve: [0.2, 0, 0, 1, 1, 1] }
+                    NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 400; easing.type: Easing.BezierSpline; easing.bezierCurve: [0.2, 0, 0, 1, 1, 1] }
                 }
             }
 
             pushExit: Transition {
                 ParallelAnimation {
-                    NumberAnimation { property: "x"; from: 0; to: -menuContainer.width; duration: 200; easing.type: Easing.InQuart }
-                    NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 200; }
+                    NumberAnimation { property: "x"; from: 0; to: -menuContainer.width; duration: 400; easing.type: Easing.BezierSpline; easing.bezierCurve: [0.2, 0, 0, 1, 1, 1] }
+                    NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 400; easing.type: Easing.BezierSpline; easing.bezierCurve: [0.2, 0, 0, 1, 1, 1] }
                 }
             }
 
             popEnter: Transition {
                 ParallelAnimation {
-                    NumberAnimation { property: "x"; from: -menuContainer.width; to: 0; duration: 200; easing.type: Easing.OutQuart }
-                    NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 200 }
+                    NumberAnimation { property: "x"; from: -menuContainer.width; to: 0; duration: 400; easing.type: Easing.BezierSpline; easing.bezierCurve: [0.2, 0, 0, 1, 1, 1] }
+                    NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 400; easing.type: Easing.BezierSpline; easing.bezierCurve: [0.2, 0, 0, 1, 1, 1] }
                 }
             }
 
             popExit: Transition {
                 ParallelAnimation {
-                    NumberAnimation { property: "x"; from: 0; to: menuContainer.width; duration: 200; easing.type: Easing.InQuart }
-                    NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 200 }
+                    NumberAnimation { property: "x"; from: 0; to: menuContainer.width; duration: 400; easing.type: Easing.BezierSpline; easing.bezierCurve: [0.2, 0, 0, 1, 1, 1] }
+                    NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 400; easing.type: Easing.BezierSpline; easing.bezierCurve: [0.2, 0, 0, 1, 1, 1] }
                 }
             }
 
@@ -307,7 +307,7 @@ Rectangle {
         id: rootMouseArea
         anchors.fill: parent
         acceptedButtons: Qt.LeftButton | Qt.RightButton
-        enabled: root.menuState === "open"
+        enabled: root.isOpen
 
         onClicked: (mouseEvent) => {
             if(mouseEvent.button === Qt.RightButton && menuStack.depth > 1) {
@@ -321,7 +321,9 @@ Rectangle {
     function open(defaultMenuHandle: QsMenuHandle, x: int, y: int) {
         root.openX = x
         root.openY = y
-        
+        root.visible = true
+        root.isOpen = true
+
         const menu = menuComponent.createObject(null, {
             handle: defaultMenuHandle,
             isSubmenu: false
@@ -332,15 +334,12 @@ Rectangle {
         Qt.callLater(() => {
             menuContainer.visible = true
             menuContainer.y = y
-
-            root.visible = true
-            root.menuState = "open"
         })
     }
 
     function close() {
-        if (root.menuState === "closed") return
-        root.menuState = "closed"
+        if (!root.isOpen) return
+        root.isOpen = false
     }
 
 }

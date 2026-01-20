@@ -71,8 +71,9 @@ ShellRoot {
           anchors.fill: parent
           
           Topbar { id: topbar; parentWindow: shellWindow; trayMenu: trayMenu}
+          NotificationPopups { id: notificationDrawer; attachedTo: topbar }
+          NotificationTray { id: notificationTray; attachedBar: topbar }
           TrayMenu { id: trayMenu; parentWindow: shellWindow; }
-          NotificationDrawer { id: notificationDrawer; attachedTo: topbar }
         }
       }
 
@@ -89,6 +90,7 @@ ShellRoot {
 
   Component.onCompleted: () => {
     Hypr.init()
+    Weather.init()
     Notifications.init()
   }
 }

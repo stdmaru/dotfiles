@@ -15,7 +15,6 @@ Rectangle {
   required property TrayMenu trayMenu
 
   color: "transparent"
-  z: 0
   implicitWidth: parent.width
   implicitHeight: 50
 
@@ -74,7 +73,7 @@ Rectangle {
         Row {
           spacing: 3
           anchors.centerIn: parent
-          
+
           // Weather
           Button {
             id: btn
@@ -124,8 +123,7 @@ Rectangle {
               }
 
               onClicked: function() {
-                Quickshell.execDetached(["eww", "open", "notifications-tray"])
-                Quickshell.execDetached(["eww", "open", "notifications-tray-closer"])
+                Notifications.trayOpen = !Notifications.trayOpen
               }
 
               // Atualiza a cada minuto

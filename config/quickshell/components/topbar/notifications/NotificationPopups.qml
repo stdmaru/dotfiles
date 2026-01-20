@@ -8,19 +8,14 @@ Item {
     id: root
     required property Item attachedTo
 
-    readonly property int notificationItemWidth: 450
-    readonly property int notificationItemHeight: 70
-    readonly property int itemTotalHeight: notificationItemHeight + listView.spacing
-
     // Âncoras do container invisível
     anchors.horizontalCenter: attachedTo.horizontalCenter
     anchors.top: attachedTo.bottom
     anchors.topMargin: -5
     
-    width: notificationItemWidth + 20
+    width: 470
     height: background.height
-    z: -1
-
+    
     Rectangle {
         id: background
         anchors.top: parent.top
@@ -30,40 +25,43 @@ Item {
         bottomLeftRadius: 15
         bottomRightRadius: 15
         clip: true
-
         height: (listView.contentHeight > 0) ? listView.contentHeight + 10 : 0
 
         ListView {
             id: listView
             anchors.top: parent.top
             anchors.horizontalCenter: parent.horizontalCenter
-            width: root.notificationItemWidth
+            width: root.width - 20
             height: 1080 // FIXME
             
-            model: Notifications.popup
-            spacing: 5
+            model: Notifications.all
             interactive: false
-            clip: false
+            clip: true
             
-            delegate: NotificationItem {
-                targetWidth: root.notificationItemWidth;
-                targetHeight: root.notificationItemHeight;
+            delegate: Loader {
+                id: loader
+                required property var modelData
+                
+                sourceComponent: NotificationItem {
+                    scene: "popup";
+                    modelData: loader.modelData
+                    width: listView?.width ?? 0;
+                }
             }
 
             // --- TRANSIÇÕES ---
             add: Transition {
                 ParallelAnimation {
-                    NumberAnimation {properties: "opacity"; from: 0; to: 1; duration: 400; easing.type: Easing.InCubic}
+                    NumberAnimation {properties: "x"; from: listView.width; to: 0; duration: 400; easing.type: Easing.BezierSpline; easing.bezierCurve: [0.2, 0, 0, 1, 1, 1]}
+                    NumberAnimation {properties: "opacity"; from: 0; to: 1; duration: 400; easing.type: Easing.BezierSpline; easing.bezierCurve: [0.2, 0, 0, 1, 1, 1]}
                 }
             }
-            populate: add
             displaced: Transition {
                 ParallelAnimation {
                     NumberAnimation {property: "y"; duration: 400; easing.type: Easing.BezierSpline; easing.bezierCurve: [0.2, 0, 0, 1, 1, 1]}
-                    NumberAnimation {property: "opacity"; to: 1; duration: 400; easing.type: Easing.InCubic }
+                    NumberAnimation {property: "opacity"; to: 1; duration: 400; easing.type: Easing.BezierSpline; easing.bezierCurve: [0.2, 0, 0, 1, 1, 1] }
                 }
             }
-            move: displaced
         }
     }
 
@@ -155,7 +153,7 @@ Item {
 
     // Bloqueador de cliques
     MouseArea {
-        z: parent.z
+        z: -1
         anchors.fill: background
         acceptedButtons: Qt.AllButtons
         onClicked: {}

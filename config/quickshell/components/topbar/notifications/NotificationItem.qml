@@ -4,105 +4,169 @@ import qs.config
 import qs.controllers
 import Qt5Compat.GraphicalEffects
 import QtQuick
-import QtQuick.Layouts
+import QtQuick.Controls
 
-Item {
-    required property int targetWidth
-    required property int targetHeight
-
-    signal removalFinished()
-
+SwipeDelegate {
     id: root
-    width: container.width
-    height: container.height
-
-    // Notification attrs
     required property var modelData;
+    required property string scene;
+    
+    property int implicitHeightCollapsed: 76
 
+    property bool isDeleted: modelData.isDeleted
     property bool expand: false
 
-    MouseArea {
-        anchors.fill: root
+    // Time display
+    property string relativeTime
+    property int currentInterval: 1000
+
+    leftPadding: 0
+    rightPadding: 0
+    topPadding: 3
+    bottomPadding: 3
+
+    background: null
+
+    implicitHeight: container.implicitHeight + topPadding + bottomPadding
+    height: expand ? implicitHeight : implicitHeightCollapsed
+    z: -1
+
+    Timer {
+        id: timer
+        running: root.scene === "popup"
+        interval: root.modelData.expireTimeout > 0 ? root.modelData.expireTimeout : 4_000
+        onTriggered: {
+            root.expand = false
+            root.modelData.isPopup = false
+            root.isDeleted = true
+            root.height = 0
+            root.opacity = 0
+        }
+    }
+
+    Timer {
+        id: relativeTimer
+        repeat: true
+        running: !root.isDeleted
+        interval: root.currentInterval
+
+        onTriggered: root.updateRelativeTime()
+    }
+
+    function updateRelativeTime() {
+        const delta = Date.now() - modelData.createdAt
+
+        // Atualiza texto
+        root.relativeTime = Utils.formatRelativeTime(delta)
+
+        // Decide próximo intervalo
+        const next = nextUpdateInterval(delta)
+
+        if (next < 0) {
+            relativeTimer.stop()
+        } else if (next !== root.currentInterval) {
+            root.currentInterval = next
+            relativeTimer.restart()
+        }
+    }
+
+    function nextUpdateInterval(deltaMs) {
+        const seconds = deltaMs / 1000
+        if (seconds < 60)
+            return 1000          // 1s
+
+        if (seconds < 3600)
+            return 60_000        // 1 min
+
+        if (seconds < 86400)
+            return 3_600_000     // 1 hora
+
+        return -1                // não precisa mais atualizar
+    }
+
+    Component.onCompleted: updateRelativeTime()
+
+    HoverHandler {
+        onHoveredChanged: {
+            if (hovered) {
+                if(root.scene === "popup") timer.stop()
+                container.color = "#3c3d4c"
+            } else {
+                if(root.scene === "popup") timer.start()
+                container.color = "#45475a"
+            }
+        }
+        cursorShape: (root.pressed) ? Qt.ClosedHandCursor : Qt.PointingHandCursor
+    }
+
+    TapHandler {
+        id: tapHandler
         acceptedButtons: Qt.AllButtons
-        hoverEnabled: true
-        cursorShape: Qt.PointingHandCursor
-        onEntered: {
-            Notifications.preventPopupRemoval = true
-            root.modelData.timer.stop()
-            container.color = '#3c3d4c'
-        }
-        onExited: {
-            Notifications.preventPopupRemoval = false
-            root.modelData.timer.restart()
-            container.color = "#45475a"
-        }
-        onClicked: (mouseEvent) => {
+        
+        onTapped: {
+            if(root.isDeleted) return
             root.expand = !root.expand
         }
     }
 
-    ListView.onRemove: outAnimation.start()
+    swipe.right: SwipeRectangle{}
 
-    SequentialAnimation {
-        id: outAnimation
-
-        PropertyAction { target: root; property: "ListView.delayRemove"; value: true }
-        ParallelAnimation {
-            //NumberAnimation { target: root; property: "scale"; to: 0; duration: 400; easing.type: Easing.BezierSpline; easing.bezierCurve: [0.2, 0, 0, 1, 1, 1] }
-            NumberAnimation { target: root; property: "opacity"; to: 0; duration: 400; easing.type: Easing.InCubic }
-            NumberAnimation { target: root; property: "height"; to: 0; duration: 400; easing.type: Easing.InCubic }
-            //NumberAnimation { target: root; property: "y"; duration: 400; easing.type: Easing.BezierSpline; easing.bezierCurve: [0.2, 0, 0, 1, 1, 1]}
-        }
-        PropertyAction { target: root; property: "ListView.delayRemove"; value: false }
+    component SwipeRectangle: Rectangle {
+        width: parent?.width ?? 0
+        height: parent?.height ?? 0
+        color: "transparent"
     }
-    
-    Rectangle {
-        property real warpX: root.modelData.justPopped ? 1 : 0
-        property int slide: warpX * root.targetWidth
-        
+
+    swipe.onCompleted: {
+        if(root.scene === "popup") {
+            root.modelData.isPopup = false
+        }
+        else if(root.scene === "tray") {
+            root.modelData.isDeleted = true
+        }
+
+        root.isDeleted = true
+        root.opacity = 0
+        root.height = 0
+    }
+
+    Behavior on opacity {
+        NumberAnimation{ duration: 400; easing.type: Easing.BezierSpline; easing.bezierCurve: [0.2, 0, 0, 1, 1, 1] }
+    }
+
+    Behavior on height {
+        enabled: root.isDeleted
+        NumberAnimation{ duration: 400; easing.type: Easing.BezierSpline; easing.bezierCurve: [0.2, 0, 0, 1, 1, 1] }
+    }
+
+    contentItem: Rectangle {
         id: container
-        width: root.targetWidth - Math.abs(slide)
-        height: root.targetHeight
+        anchors.top: parent.top
+        width: parent.width
+        implicitHeight: innerContent.implicitHeight + 10
         color: "#45475a"
         radius: 10
         clip: true
-        x: slide > 0 ? Math.abs(slide) : 0
 
-        Behavior on warpX {
-            NumberAnimation { duration: 400; easing.type: Easing.OutCubic }
-        }
-
-        Component.onCompleted: {
-            if (root.modelData.justPopped) {
-                warpX = 0
-                root.modelData.justPopped = false
-            }
-        }
-
-        states: [
-            State{
-                name: "expanded"
-                when: root.expand === true
-                PropertyChanges {
-                    container.height: content.height + 20
-                }
-            }
-        ]
-        
         Rectangle {
             id: innerContent
-            anchors.centerIn: parent
-            width: parent.width + Math.abs(container.slide) - 10
-            height: parent.height - 10
+            anchors {
+                top: parent.top
+                left: parent.left
+                right: parent.right
+                margins: 5
+            }
+            width: parent.width - 10
+            implicitHeight: Math.max(avatar.height + avatar.anchors.topMargin + avatar.anchors.bottomMargin, content.implicitHeight)
             color: "transparent"
-            x: (container.slide > 0) ? 0 : container.slide
 
             Rectangle {
                 id: avatar
                 color: "#11111b"
-                width: height
-                height: 56
-                radius: height
+                width: 56
+                height: width
+                radius: width
+                anchors.margins: 2
                 anchors.top: parent.top
                 anchors.left: parent.left
                 //anchors.verticalCenter: parent.verticalCenter
@@ -159,19 +223,9 @@ Item {
                     text: root.modelData.appName
                     font.pointSize: 11
                     color: "#b1b1b5"
-                    topPadding: 4
-                    leftPadding: 4
+                    topPadding: 5
+                    leftPadding: 5
                     maximumLineCount: 1
-
-                    states: [
-                        State{
-                            name: "expanded"
-                            when: root.expand === true
-                            PropertyChanges {
-                                appName.opacity: 1
-                            }
-                        }
-                    ]
 
                     Behavior on opacity {
                         NumberAnimation { duration: 400; easing.type: Easing.BezierSpline; easing.bezierCurve: [0.2, 0, 0, 1, 1, 1]}
@@ -194,7 +248,7 @@ Item {
                     states: [
                         State{
                             name: "expanded"
-                            when: root.expand === true
+                            when: root.expand
                             AnchorChanges {
                                 target: title
                                 anchors.top: appName.bottom
@@ -211,41 +265,32 @@ Item {
 
                 Text {
                     id: timeSeparator
+                    anchors.top: content.top
                     anchors.left: title.right
-                    anchors.verticalCenter: title.verticalCenter
+
                     font.family: Config.main_font
                     text: "•"
-                    font.pointSize: 10
+                    font.pointSize: 11
 
                     color: "#b1b1b5"
-                    topPadding: 4
+                    topPadding: 6
                     leftPadding: 5
                     maximumLineCount: 1
 
                     states: [
                         State {
-                            name: "collapsed"
-                            when: root.expand === false && container.x == 0
-                            AnchorChanges {
-                                target: timeSeparator
-                                anchors.left: title.right
-                            }
-                        },
-                        State {
                             name: "expanded"
-                            when: root.expand === true
+                            when: root.expand
                             AnchorChanges {
                                 target: timeSeparator
+                                anchors.top: content.top
                                 anchors.left: appName.right
-                                anchors.verticalCenter: appName.verticalCenter
                             }
                         }
                     ]
 
                     transitions: [
                         Transition {
-                            from: "*"
-                            to: "*"
                             AnchorAnimation {
                                 duration: 400
                                 easing.type: Easing.BezierSpline
@@ -257,14 +302,16 @@ Item {
 
                 Text {
                     id: time
+                    anchors.top: content.top
                     anchors.left: timeSeparator.right
-                    anchors.verticalCenter: timeSeparator.verticalCenter
+
                     font.family: Config.main_font
-                    text: "agora"
+                    text: root.relativeTime
                     font.pointSize: 10
 
                     color: "#b1b1b5"
-                    topPadding: 3
+
+                    topPadding: 6
                     leftPadding: 5
                     maximumLineCount: 1
                 }
@@ -274,7 +321,7 @@ Item {
                     anchors.right: parent.right
                     anchors.verticalCenter: appName.verticalCenter
                     font.family: Config.main_font
-                    text: ""
+                    text: (root.expand) ? "" : ""
                     font.pointSize: 10
                     color: "#b1b1b5"
                     rightPadding: 0
@@ -326,14 +373,6 @@ Item {
                             }
                         }
                     ]
-
-                    Behavior on height {
-                        NumberAnimation {
-                            duration: 400
-                            easing.type: Easing.BezierSpline;
-                            easing.bezierCurve: [0.2, 0, 0, 1, 1, 1]
-                        }
-                    }
                 }
 
                 Behavior on opacity {
