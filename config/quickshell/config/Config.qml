@@ -21,7 +21,7 @@ Singleton {
     readonly property string temperature_metric: "°C"
     readonly property string gpu_type: "NVIDIA" // NVIDIA; GENERIC; NONE
     readonly property int topbar_height: 50
-    readonly property int topbar_corner_radius: 7
+    readonly property int topbar_corner_radius: 12
     readonly property bool frame_enabled: false
     readonly property int frame_thickness: 5
     readonly property int frame_corner_radius: 7
@@ -49,7 +49,7 @@ Singleton {
     readonly property int ui_color_ms: motion_effect_ms
     readonly property int notification_panel_max_width: 750
     readonly property int notification_panel_height: 590
-    readonly property int notification_panel_corner_radius: 22
+    readonly property int notification_panel_corner_radius: 18
     readonly property int notification_panel_emergence: 30
     readonly property int notification_panel_left_weight: 2
     readonly property int notification_panel_right_weight: 1

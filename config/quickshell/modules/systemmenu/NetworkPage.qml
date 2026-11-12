@@ -25,7 +25,7 @@ Column {
     Rectangle {
         width: parent.width
         height: 60
-        radius: 12
+        radius: Theme.radius_m
         color: Theme.base
         Row {
             anchors.fill: parent
@@ -63,7 +63,7 @@ Column {
     Rectangle {
         width: parent.width
         height: 58
-        radius: 11
+        radius: Theme.radius_s
         color: Theme.base
         Row {
             id: wifiHeaderContent
@@ -120,7 +120,7 @@ Column {
                 width: 18
                 height: 18
                 radius: 9
-                color: "#f5f5f7"
+                color: Theme.text
 
                 Behavior on x {
                     NumberAnimation { duration: 360; easing.type: Easing.OutCubic }
@@ -223,9 +223,9 @@ Column {
             scale: 1
             opacity: 1
             transformOrigin: Item.Center
-            radius: 9
-            color: networkHeaderMouse.pressed ? "#343449"
-                : networkHeaderMouse.containsMouse ? "#29293b" : Theme.base
+            radius: Theme.radius_s
+            color: networkHeaderMouse.pressed ? Theme.basePressed
+                : networkHeaderMouse.containsMouse ? Theme.baseHover : Theme.base
             clip: true
 
             Behavior on color {
@@ -396,7 +396,7 @@ Column {
                     visible: wifiNetworkDelegate.savedConnection !== null
                     width: visible ? (parent.width - parent.spacing) / 2 : 0
                     height: 32
-                    radius: 8
+                    radius: Theme.radius_s
                     scale: forgetMouse.pressed ? 0.97
                         : forgetMouse.containsMouse ? 1.02 : 1
                     opacity: forgetMouse.enabled ? 1 : 0.45
@@ -448,7 +448,7 @@ Column {
                     visible: wifiNetworkDelegate.savedConnection !== null
                     width: visible ? (parent.width - parent.spacing) / 2 : 0
                     height: 32
-                    radius: 8
+                    radius: Theme.radius_s
                     scale: connectionActionMouse.pressed ? 0.97
                         : connectionActionMouse.containsMouse ? 1.02 : 1
                     opacity: connectionActionMouse.enabled ? 1 : 0.45
@@ -501,7 +501,7 @@ Column {
 
                     width: visible ? parent.width - connectWifiButton.width - parent.spacing : 0
                     height: 32
-                    radius: 8
+                    radius: Theme.radius_s
                     color: Theme.surface0
 
                     TextInput {
@@ -560,7 +560,7 @@ Column {
                         : connectMouse.containsMouse ? 1.02 : 1
                     width: visible ? 88 : 0
                     height: 32
-                    radius: 8
+                    radius: Theme.radius_s
                     color: connectMouse.containsMouse ? Theme.lavender : Theme.blue
 
                     Behavior on opacity {

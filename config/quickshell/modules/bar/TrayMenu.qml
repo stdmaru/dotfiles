@@ -26,10 +26,10 @@ Rectangle {
         id: menuContainer
         property int minWidth: 150
 
-        color: "#22222c"
+        color: Theme.mantle
         radius: 6
         z: 2
-        border.color: "#444455"
+        border.color: Theme.outline
         border.width: 1
         clip: true
 
@@ -162,7 +162,7 @@ Rectangle {
                 implicitHeight: 25
                 implicitWidth: implicitHeight * 2
                 radius: implicitHeight
-                color: "#444455"
+                color: Theme.outline
 
                 Text {
                     anchors.centerIn: parent
@@ -179,8 +179,8 @@ Rectangle {
 
                     onClicked: menuStack.pop()
 
-                    onEntered: parent.color = '#303055'
-                    onExited: parent.color = "#444455"
+                    onEntered: parent.color = Theme.surface0Hover
+                    onExited: parent.color = Theme.outline
                 }
             }
 
@@ -242,7 +242,7 @@ Rectangle {
                             visible: !item.isSeparator
                             text: !item.isSeparator ? item.modelData.text : "------------------"
                             font.family: Theme.font_display
-                            color: (item.isEnabled ? "white" : "#888888")
+                            color: (item.isEnabled ? "white" : Theme.overlay0)
                         }
                     }
 
@@ -281,7 +281,7 @@ Rectangle {
                         }
                         onEntered: () => {
                             if(!item.isEnabled) return
-                            item.color = "#444455"
+                            item.color = Theme.outline
                         }
                         onExited: () => {
                             item.color = "transparent"
@@ -294,7 +294,7 @@ Rectangle {
                         anchors.right: parent.right
                         visible: item.modelData?.isSeparator
                         height: 1
-                        color: "#444455"
+                        color: Theme.outline
                     }
                 }
             }

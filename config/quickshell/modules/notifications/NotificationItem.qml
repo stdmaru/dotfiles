@@ -276,8 +276,8 @@ SwipeDelegate {
         anchors.top: parent.top
         width: parent.width
         implicitHeight: innerContent.implicitHeight + 10
-        color: popupHover.hovered ? "#3c3d4c" : Theme.surface1
-        radius: 10
+        color: popupHover.hovered ? Theme.surface0 : Theme.base
+        radius: Theme.radius_m
         clip: true
         scale: root.pressed ? 0.99 : 1
 
@@ -359,7 +359,7 @@ SwipeDelegate {
                     font.pixelSize: 24
                     anchors.centerIn: parent
                     text: "\uf0f3"
-                    color: Theme.barText
+                    color: Theme.subtext0
                 }
             }
 
@@ -413,9 +413,9 @@ SwipeDelegate {
                         width: Math.min(implicitWidth, Math.max(0, content.width * 0.5 - 22))
                         height: parent.height
                         text: root.modelData?.appName || "Aplicativo"
-                        font.family: Theme.font_display
+                        font.family: Theme.font_ui
                         font.pointSize: 11
-                        color: Theme.barText
+                        color: Theme.subtext0
                         maximumLineCount: 1
                         elide: Text.ElideRight
                         verticalAlignment: Text.AlignVCenter
@@ -434,7 +434,7 @@ SwipeDelegate {
                     text: titleText.text
                     font.pointSize: 11
 
-                    color: Theme.barText
+                    color: Theme.text
                     topPadding: 5
                     leftPadding: 5
                     maximumLineCount: 1
@@ -462,11 +462,11 @@ SwipeDelegate {
                     anchors.top: content.top
                     anchors.left: title.right
 
-                    font.family: Theme.font_display
+                    font.family: Theme.font_ui
                     text: "•"
                     font.pointSize: 11
 
-                    color: Theme.barText
+                    color: Theme.subtext0
                     topPadding: 6
                     leftPadding: 5
                     maximumLineCount: 1
@@ -499,11 +499,11 @@ SwipeDelegate {
                     anchors.top: content.top
                     anchors.left: timeSeparator.right
 
-                    font.family: Theme.font_display
+                    font.family: Theme.font_ui
                     text: root.relativeTime
                     font.pointSize: 10
 
-                    color: Theme.barText
+                    color: Theme.subtext0
 
                     topPadding: 6
                     leftPadding: 5
@@ -514,10 +514,10 @@ SwipeDelegate {
                     id: expandBtn
                     anchors.right: parent.right
                     anchors.verticalCenter: appName.verticalCenter
-                    font.family: Theme.font_display
+                    font.family: Theme.font_ui
                     text: (root.expand) ? "\uf077" : "\uf078"
                     font.pointSize: 10
-                    color: Theme.barText
+                    color: Theme.subtext0
                     rightPadding: 0
                     bottomPadding: 5
                     maximumLineCount: 1
@@ -534,12 +534,12 @@ SwipeDelegate {
                 Text {
                     id: body
                     anchors.top: title.bottom
-                    font.family: Theme.font_display
+                    font.family: Theme.font_ui
                     width: parent.width
                     text: bodyText.text
                     wrapMode: Text.WordWrap
                     font.pointSize: 10
-                    color: Theme.barText
+                    color: Theme.subtext0
                     leftPadding: 4
                     maximumLineCount: 999
                     height: collapsedBody.implicitHeight
@@ -581,11 +581,11 @@ SwipeDelegate {
 
                             width: Math.min(actionLabel.implicitWidth + 22, actionsFlow.width)
                             height: 30
-                            radius: 8
+                            radius: Theme.radius_s
                             enabled: !!root.modelData?.sourceNotification
                             opacity: enabled ? 1 : 0.48
-                            color: !enabled ? "#272838"
-                                : actionHover.hovered ? Theme.blue : Theme.surface0
+                            color: !enabled ? Theme.base
+                                : actionHover.hovered ? Theme.blue : Theme.surface1
 
                             Behavior on color {
                                 ColorAnimation {
@@ -602,7 +602,7 @@ SwipeDelegate {
                                 text: actionButton.modelData.text
                                 color: !actionButton.enabled ? Theme.overlay1
                                     : actionHover.hovered ? Theme.crust : Theme.text
-                                font.family: Theme.font_display
+                                font.family: Theme.font_ui
                                 font.pointSize: 9
                                 horizontalAlignment: Text.AlignHCenter
                                 elide: Text.ElideRight
@@ -641,7 +641,7 @@ SwipeDelegate {
                         height: parent.height
                         placeholderText: root.modelData?.inlineReplyPlaceholder || "Responder…"
                         color: Theme.text
-                        font.family: Theme.font_display
+                        font.family: Theme.font_ui
                         font.pointSize: 9
                         enabled: !!root.modelData?.sourceNotification
                         selectByMouse: true
@@ -650,7 +650,7 @@ SwipeDelegate {
                         onAccepted: sendReply()
 
                         background: Rectangle {
-                            radius: 8
+                            radius: Theme.radius_s
                             color: Theme.mantle
                             border.width: replyInput.activeFocus ? 1 : 0
                             border.color: Theme.blue
@@ -673,15 +673,16 @@ SwipeDelegate {
                         id: sendReplyButton
                         width: 38
                         height: parent.height
-                        radius: 8
+                        radius: Theme.radius_s
                         enabled: !!root.modelData?.sourceNotification
                         opacity: enabled ? 1 : 0.48
-                        color: enabled && sendReplyHover.hovered ? Theme.blue : Theme.surface0
+                        color: enabled && sendReplyHover.hovered ? Theme.blue : Theme.surface1
 
                         Text {
                             anchors.centerIn: parent
                             text: "➤"
                             color: sendReplyHover.hovered ? Theme.crust : Theme.text
+                            font.family: Theme.font_ui
                             font.pointSize: 11
                         }
 

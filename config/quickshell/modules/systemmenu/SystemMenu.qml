@@ -262,10 +262,10 @@ PopupWindow {
         y: 1 + (1 - root.panelProgress) * -10
         width: root.width - 2
         height: Math.min(root.panelContentHeight * root.panelProgress, root.height - 2)
-        radius: 18
+        radius: Theme.radius_l
         color: Theme.crust
         border.width: 1
-        border.color: "#303044"
+        border.color: Theme.outline
         opacity: root.panelProgress
         clip: true
 

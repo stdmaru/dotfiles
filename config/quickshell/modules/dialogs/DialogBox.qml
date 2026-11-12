@@ -65,10 +65,10 @@ PanelWindow {
             width: Math.min(440, parent.width - 40)
             height: Math.min(parent.height - 40, cardContent.implicitHeight + 38)
             anchors.centerIn: parent
-            radius: 18
-            color: "#191923"
+            radius: Theme.radius_l
+            color: Theme.mantle
             border.width: 1
-            border.color: "#343443"
+            border.color: Theme.outline
             opacity: root.progress
             scale: 0.96 + root.progress * 0.04
             clip: true
@@ -113,8 +113,8 @@ PanelWindow {
                         width: parent.width - closeButton.width - parent.spacing
                             - (titleIconContainer.visible ? titleIconContainer.width + parent.spacing : 0)
                         text: Dialogs.title
-                        color: "#e6e6f0"
-                        font.family: Theme.font_display
+                        color: Theme.text
+                        font.family: Theme.font_ui
                         font.pixelSize: 18
                         font.weight: Font.DemiBold
                         verticalAlignment: Text.AlignVCenter
@@ -132,14 +132,15 @@ PanelWindow {
 
                         contentItem: Text {
                             text: closeButton.text
-                            color: "#a7a7bc"
+                            color: Theme.subtext0
+                            font.family: Theme.font_ui
                             font.pixelSize: 22
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
                         }
                         background: Rectangle {
-                            radius: 9
-                            color: closeButton.down ? "#414155" : closeButton.hovered ? "#30303f" : "transparent"
+                            radius: Theme.radius_s
+                            color: closeButton.down ? Theme.surface1 : closeButton.hovered ? Theme.surface0 : "transparent"
                         }
                     }
                 }
@@ -148,8 +149,8 @@ PanelWindow {
                     width: parent.width
                     visible: Dialogs.message.length > 0
                     text: Dialogs.message
-                    color: "#bfc0d0"
-                    font.family: Theme.font_display
+                    color: Theme.subtext0
+                    font.family: Theme.font_ui
                     font.pixelSize: 14
                     wrapMode: Text.Wrap
                     lineHeight: 1.2
@@ -177,8 +178,8 @@ PanelWindow {
                                 width: parent.width
                                 visible: fieldDelegate.modelData.label.length > 0
                                 text: fieldDelegate.modelData.label
-                                color: "#bfc0d0"
-                                font.family: Theme.font_display
+                                color: Theme.subtext0
+                                font.family: Theme.font_ui
                                 font.pixelSize: 12
                             }
 
@@ -189,14 +190,14 @@ PanelWindow {
                                 text: fieldDelegate.modelData.value
                                 placeholderText: fieldDelegate.modelData.placeholder
                                 echoMode: fieldDelegate.modelData.password ? TextInput.Password : TextInput.Normal
-                                color: "#f4f4f8"
-                                placeholderTextColor: "#77778b"
-                                font.family: Theme.font_display
+                                color: Theme.text
+                                placeholderTextColor: Theme.overlay0
+                                font.family: Theme.font_ui
                                 font.pixelSize: 14
                                 leftPadding: 12
                                 rightPadding: 12
                                 background: Rectangle {
-                                    radius: 10
+                                    radius: Theme.radius_s
                                     color: Theme.crust
                                     border.width: field.activeFocus ? 2 : 1
                                     border.color: field.activeFocus ? Theme.blue : Theme.outline
@@ -228,18 +229,18 @@ PanelWindow {
                             contentItem: Text {
                                 id: optionText
                                 text: modelData.text
-                                color: modelData.role === "primary" ? Theme.crust : "#e6e6f0"
-                                font.family: Theme.font_display
+                                color: modelData.role === "primary" ? Theme.crust : Theme.text
+                                font.family: Theme.font_ui
                                 font.pixelSize: 13
                                 font.weight: Font.DemiBold
                                 horizontalAlignment: Text.AlignHCenter
                                 verticalAlignment: Text.AlignVCenter
                             }
                             background: Rectangle {
-                                radius: 11
+                                radius: Theme.radius_s
                                 color: modelData.role === "primary"
-                                    ? (parent.down ? "#74a8f5" : Theme.blue)
-                                    : (parent.down ? "#414155" : parent.hovered ? "#30303f" : "#252532")
+                                    ? (parent.down ? Theme.sapphire : Theme.blue)
+                                    : (parent.down ? Theme.surface1 : parent.hovered ? Theme.surface0 : Theme.base)
                                 border.width: modelData.role === "primary" ? 0 : 1
                                 border.color: Theme.outline
                             }

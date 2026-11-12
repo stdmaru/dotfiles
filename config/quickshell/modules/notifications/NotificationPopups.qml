@@ -34,8 +34,8 @@ Item {
         color: Theme.crust
         topLeftRadius: 0
         topRightRadius: 0
-        bottomLeftRadius: 15
-        bottomRightRadius: 15
+        bottomLeftRadius: Theme.radius_l
+        bottomRightRadius: Theme.radius_l
         clip: true
 
         ListView {

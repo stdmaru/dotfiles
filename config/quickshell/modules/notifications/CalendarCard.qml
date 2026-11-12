@@ -58,7 +58,7 @@ Rectangle {
     }
 
     height: 245
-    radius: 14
+    radius: Theme.radius_m
     color: Theme.base
 
     SystemClock {
@@ -154,7 +154,7 @@ Rectangle {
                     height: 28
                     radius: 14
                     color: navArea.pressed ? Theme.surface1
-                        : navArea.containsMouse ? "#3b3d54" : Theme.surface0
+                        : navArea.containsMouse ? Theme.surface0Hover : Theme.surface0
                     scale: navArea.pressed ? 0.92 : navArea.containsMouse ? 1.06 : 1
 
                     Behavior on color {
@@ -168,6 +168,7 @@ Rectangle {
                         anchors.centerIn: parent
                         text: parent.modelData
                         anchors.verticalCenterOffset: -2
+                        font.family: Theme.font_ui
                         font.pixelSize: 20
                         color: Theme.text
                     }
@@ -224,10 +225,10 @@ Rectangle {
                         required property var modelData
                         width: root.dayCellWidth
                         height: 24
-                        radius: 7
+                        radius: Theme.radius_s
                         color: modelData.isSelected ? Theme.blue
                             : dayArea.pressed ? Theme.surface1
-                            : dayArea.containsMouse ? "#31364d"
+                            : dayArea.containsMouse ? Theme.surface0Hover
                             : modelData.isToday ? Theme.surface0
                             : "transparent"
                         scale: dayArea.pressed ? 0.92 : dayArea.containsMouse ? 1.06 : 1

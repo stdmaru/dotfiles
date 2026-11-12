@@ -25,7 +25,7 @@ WlSessionLockSurface {
         width: 390
         height: contentColumn.implicitHeight + contentColumn.anchors.margins * 2
         anchors.centerIn: parent
-        radius: 22
+        radius: Theme.radius_l
         color: "#ee181825"
         border.width: 1
         border.color: Theme.outline
@@ -50,7 +50,8 @@ WlSessionLockSurface {
           Text {
             width: parent.width
             text: "Sessão bloqueada"
-            color: "#f4f4f8"
+            color: Theme.text
+            font.family: Theme.font_ui
             font.pixelSize: 23
             font.weight: Font.DemiBold
             horizontalAlignment: Text.AlignHCenter
@@ -66,12 +67,13 @@ WlSessionLockSurface {
             placeholderTextColor: Theme.overlay0
             echoMode: TextInput.Password
             enabled: Session.ready && !Session.authenticating
-            color: "#f4f4f8"
+            color: Theme.text
+            font.family: Theme.font_ui
             font.pixelSize: 15
             leftPadding: 14
             rightPadding: 14
             background: Rectangle {
-              radius: 11
+              radius: Theme.radius_s
               color: Theme.crust
               border.width: passwordField.activeFocus ? 2 : 1
               border.color: passwordField.activeFocus ? Theme.blue : Theme.outline
@@ -89,7 +91,8 @@ WlSessionLockSurface {
             width: parent.width
             height: 18
             text: Session.authenticating ? "Validando…" : Session.error
-            color: Session.error && !Session.authenticating ? Theme.red : "#a7a7bc"
+            color: Session.error && !Session.authenticating ? Theme.red : Theme.subtext0
+            font.family: Theme.font_ui
             font.pixelSize: 12
             horizontalAlignment: Text.AlignHCenter
             elide: Text.ElideRight
@@ -105,14 +108,15 @@ WlSessionLockSurface {
             contentItem: Text {
               text: unlockButton.text
               color: Theme.crust
+              font.family: Theme.font_ui
               font.pixelSize: 14
               font.weight: Font.DemiBold
               horizontalAlignment: Text.AlignHCenter
               verticalAlignment: Text.AlignVCenter
             }
             background: Rectangle {
-              radius: 11
-              color: unlockButton.enabled ? (unlockButton.down ? "#74a8f5" : Theme.blue) : "#4c5368"
+              radius: Theme.radius_s
+              color: unlockButton.enabled ? (unlockButton.down ? Theme.sapphire : Theme.blue) : Theme.surface1
             }
           }
         }

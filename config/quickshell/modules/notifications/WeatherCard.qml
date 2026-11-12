@@ -18,9 +18,9 @@ Rectangle {
     }
 
     height: 141
-    radius: 14
-    color: weatherArea.pressed ? "#292b40"
-        : weatherArea.containsMouse ? "#25263a" : Theme.base
+    radius: Theme.radius_m
+    color: weatherArea.pressed ? Theme.basePressed
+        : weatherArea.containsMouse ? Theme.baseHover : Theme.base
 
     Behavior on color {
         ColorAnimation { duration: Config.ui_color_ms; easing.type: Easing.BezierSpline; easing.bezierCurve: Config.motion_fast_effect_curve }
@@ -63,6 +63,7 @@ Rectangle {
                 horizontalAlignment: Text.AlignRight
                 verticalAlignment: Text.AlignVCenter
                 elide: Text.ElideRight
+                font.family: Theme.font_ui
                 font.pixelSize: 10
                 color: Theme.overlay1
                 text: Weather.hasData ? `${Weather.region}, ${Weather.state}` : ""
@@ -112,6 +113,7 @@ Rectangle {
                     height: 16
                     verticalAlignment: Text.AlignVCenter
                     elide: Text.ElideRight
+                    font.family: Theme.font_ui
                     font.pixelSize: 11
                     color: Theme.subtext0
 
@@ -142,6 +144,7 @@ Rectangle {
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                         height: 2
+                        font.family: Theme.font_ui
                         font.pixelSize: 9
                         color: Theme.subtext0
                         text: root.forecastDayName(parent.modelData, parent.index)
@@ -167,6 +170,7 @@ Rectangle {
                             height: parent.height
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
+                            font.family: Theme.font_ui
                             font.pixelSize: 9
                             color: Theme.text
                             text: `${parent.parent.modelData.max}°`
@@ -177,6 +181,7 @@ Rectangle {
                             height: parent.height
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
+                            font.family: Theme.font_ui
                             font.pixelSize: 9
                             color: Theme.overlay1
                             text: `${parent.parent.modelData.min}°`

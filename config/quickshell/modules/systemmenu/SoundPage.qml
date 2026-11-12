@@ -173,7 +173,7 @@ Column {
                 required property var modelData
                 width: (parent.width - parent.spacing) / 2
                 height: 34
-                radius: 10
+                radius: Theme.radius_s
                 color: soundPageRoot.tab === modelData.id ? Theme.surface0 : Theme.base
                 Row {
                     anchors.centerIn: parent
@@ -220,7 +220,7 @@ Column {
                 required property var modelData
                 width: parent.width
                 height: 44
-                radius: 10
+                radius: Theme.radius_s
                 color: Theme.base
 
                 Row {
@@ -257,7 +257,7 @@ Column {
                     anchors.verticalCenter: parent.verticalCenter
                     width: 34
                     height: 34
-                    radius: 9
+                    radius: Theme.radius_s
                     color: Pipewire.defaultAudioSink === modelData ? Theme.blue : outputMouse.containsMouse ? Theme.surface0 : "transparent"
                     Text {
                         anchors.centerIn: parent
@@ -311,7 +311,7 @@ Column {
             required property var modelData
             width: ListView.view.width
             height: 64
-            radius: 10
+            radius: Theme.radius_s
             color: Theme.base
             property real appVolume: {
                 const streams = modelData.nodes.filter(node => node.audio !== null)

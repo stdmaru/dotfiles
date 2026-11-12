@@ -32,25 +32,25 @@ Singleton {
         TextMetrics {
             id: textMetrics
             text: root.longestLine(root.activeText)
-            font.family: Theme.font_display
+            font.family: Theme.font_ui
             font.pixelSize: 12
             font.weight: Font.Medium
         }
 
         background: Rectangle {
-            radius: 10
-            color: "#191923"
+            radius: Theme.radius_s
+            color: Theme.mantle
             opacity: 0.925
             border.width: 1
-            border.color: "#3a3a4c"
+            border.color: Theme.outline
         }
 
         contentItem: Text {
             id: tooltipLabel
             text: root.activeText
             width: popup.width - 24
-            color: "#dce0ef"
-            font.family: Theme.font_display
+            color: Theme.text
+            font.family: Theme.font_ui
             font.pixelSize: 12
             font.weight: Font.Medium
             horizontalAlignment: Text.AlignHCenter

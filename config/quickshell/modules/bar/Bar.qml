@@ -84,7 +84,7 @@ Rectangle {
             height: mainRect.height - 6
             contentItem: Label {
               font.family: Theme.font_nerd
-              font.pixelSize: 32
+              font.pixelSize: 26
               color: Theme.white
               //text: "\ue795" // terminal
               text: "\udb82\udcc7" // arch-icon
@@ -133,7 +133,7 @@ Rectangle {
 
               Label {
                 font.family: Theme.font_nerd
-                font.pixelSize: 30
+                font.pixelSize: 18
                 color: btn.active ? Theme.white : Theme.barText
                 text: (Weather.hasData) ? `${Weather.glyph}` : "\ue347"
               }
@@ -200,7 +200,7 @@ Rectangle {
             height: mainRect.height - 6
             contentItem: Label {
               font.family: Theme.font_nerd
-              font.pixelSize: 24
+              font.pixelSize: 18
               color: Theme.white
               text: root.systemTrayCollapsed ? "\uf053" : "\uf054"
             }

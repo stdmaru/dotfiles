@@ -55,9 +55,9 @@ PanelWindow {
       //anchors.bottomMargin: 5
       opacity: 1
       radius: Config.topbar_corner_radius
-      color: "#191923"
+      color: Theme.mantle
       border.width: 1
-      border.color: "#343443"
+      border.color: Theme.outline
       Column {
         anchors.fill: parent
         anchors.margins: 16
@@ -68,8 +68,8 @@ PanelWindow {
           Rectangle {
             width: 36
             height: 36
-            radius: 12
-            color: "#29293a"
+            radius: Theme.radius_m
+            color: Theme.surface0
             Grid {
               anchors.centerIn: parent
               width: 17
@@ -93,13 +93,14 @@ PanelWindow {
             spacing: 2
             Text {
               text: "Aplicativos"
-              color: "#e6e6f0"
+              color: Theme.text
               font.family: Theme.font_display
               font.pixelSize: 15
             }
             Text {
               text: "> comando  ·  digite para pesquisar"
-              color: "#88889b"
+              color: Theme.subtext0
+              font.family: Theme.font_ui
               font.pixelSize: 10
             }
           }
@@ -110,13 +111,14 @@ PanelWindow {
           height: 43
           placeholderText: "Pesquisar aplicativos ou digitar > comando"
           selectByMouse: true
-          color: "#eeeeF6"
-          placeholderTextColor: "#858597"
+          color: Theme.text
+          placeholderTextColor: Theme.overlay0
+          font.family: Theme.font_ui
           font.pixelSize: 13
           leftPadding: 12
           rightPadding: 12
           background: Rectangle {
-            radius: 13
+            radius: Theme.radius_m
             color: Theme.crust
             border.width: searchField.activeFocus ? 1 : 0
             border.color: Theme.blue
@@ -141,7 +143,8 @@ PanelWindow {
               && !searchField.text.trim().startsWith(">")
               && root.visibleApps.length === 0
             text: "Nenhum aplicativo encontrado"
-            color: "#9292a5"
+            color: Theme.subtext0
+            font.family: Theme.font_ui
             font.pixelSize: 13
           }
           Text {
@@ -150,7 +153,8 @@ PanelWindow {
             text: searchField.text.trim().length > 1
               ? "Pressione Enter para executar no terminal"
               : "Digite um comando para executar no terminal"
-            color: "#9292a5"
+            color: Theme.subtext0
+            font.family: Theme.font_ui
             font.pixelSize: 13
           }
           ListView {
@@ -178,9 +182,9 @@ PanelWindow {
               Rectangle {
                 id: rowSurface
                 anchors.fill: parent
-                radius: 13
+                radius: Theme.radius_m
                 color: (root.selectedIndex >= 0 && root.selectedIndex === appRow.index)
-                  || mouse.containsMouse ? "#2b2b3c" : "transparent"
+                  || mouse.containsMouse ? Theme.surface0 : "transparent"
                 Row {
                   anchors.fill: parent
                   anchors.leftMargin: 10
@@ -204,14 +208,16 @@ PanelWindow {
                     Text {
                       width: parent.width
                       text: appRow.name
-                      color: "#e6e6f0"
+                      color: Theme.text
+                      font.family: Theme.font_ui
                       font.pixelSize: 13
                       elide: Text.ElideRight
                     }
                     Text {
                       width: parent.width
                       text: appRow.subtitle
-                      color: "#9292a5"
+                      color: Theme.subtext0
+                      font.family: Theme.font_ui
                       font.pixelSize: 10
                       elide: Text.ElideRight
                       visible: text.length > 0
@@ -222,14 +228,15 @@ PanelWindow {
                     anchors.verticalCenter: parent.verticalCenter
                     width: Math.max(28, workspaceLabel.implicitWidth + 13)
                     height: 21
-                    radius: 8
-                    color: "#343449"
+                    radius: Theme.radius_s
+                    color: Theme.basePressed
                     Text {
                       id: workspaceLabel
                       anchors.centerIn: parent
                       text: appRow.workspace > 0
                         ? `WORKSPACE ${appRow.workspace}` : "Ativo"
                       color: Theme.lavender
+                      font.family: Theme.font_ui
                       font.pixelSize: 9
                       font.weight: Font.DemiBold
                     }

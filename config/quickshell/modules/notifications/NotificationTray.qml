@@ -253,7 +253,7 @@ Item {
                             }
 
                             background: Rectangle {
-                                radius: 9
+                                radius: Theme.radius_s
                                 color: clearButton.hovered && clearButton.enabled ? "#34232f" : Theme.base
 
                                 Behavior on color {

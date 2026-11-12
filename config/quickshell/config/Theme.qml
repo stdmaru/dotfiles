@@ -13,6 +13,10 @@ Singleton {
     readonly property color surface1: "#45475a"
     readonly property color surface2: "#585b70"
     readonly property color outline: "#38384d"
+    // Realce de hover/pressão sobre `base` e sobre `surface0`
+    readonly property color baseHover: "#25263a"
+    readonly property color basePressed: "#292b40"
+    readonly property color surface0Hover: "#3b3d54"
 
     // Texto
     readonly property color overlay0: "#6c7086"
@@ -32,7 +36,13 @@ Singleton {
     readonly property color yellow: "#f9e2af"
     readonly property color green: "#a6e3a1"
 
-    // Fontes
+    // Raios de canto: controles, cartões e painéis
+    readonly property int radius_s: 8
+    readonly property int radius_m: 12
+    readonly property int radius_l: 18
+
+    // Fontes: `font_ui` para texto em geral, `font_display` para a barra e
+    // títulos de cartões.
     readonly property string font_ui: "Cantarell"
     readonly property string font_display: "Cantarell Extra Bold"
     readonly property string font_nerd: "JetBrainsMono Nerd Font Mono"

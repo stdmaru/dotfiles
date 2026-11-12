@@ -52,9 +52,9 @@ Rectangle {
     }
 
     height: 150
-    radius: 14
-    color: musicArea.pressed ? "#292b40"
-        : musicArea.containsMouse ? "#25263a" : Theme.base
+    radius: Theme.radius_m
+    color: musicArea.pressed ? Theme.basePressed
+        : musicArea.containsMouse ? Theme.baseHover : Theme.base
 
     Behavior on color {
         ColorAnimation { duration: Config.ui_color_ms; easing.type: Easing.BezierSpline; easing.bezierCurve: Config.motion_fast_effect_curve }
@@ -116,7 +116,7 @@ Rectangle {
                 id: albumArtFrame
                 width: 52
                 height: 52
-                radius: 9
+                radius: Theme.radius_s
                 color: Theme.surface0
                 clip: true
 
@@ -178,6 +178,7 @@ Rectangle {
                     width: parent.width
                     elide: Text.ElideRight
                     text: root.trackSubtitle
+                    font.family: Theme.font_ui
                     font.pixelSize: 11
                     color: Theme.overlay1
                 }
@@ -290,6 +291,7 @@ Rectangle {
 
             Text {
                 id: elapsedLabel
+                font.family: Theme.font_ui
                 font.pixelSize: 9
                 color: Theme.overlay1
                 text: root.activePlayer ? root.formatTrackTime(root.activePlayer.position) : "0:00"
@@ -373,6 +375,7 @@ Rectangle {
 
             Text {
                 id: durationLabel
+                font.family: Theme.font_ui
                 font.pixelSize: 9
                 color: Theme.overlay1
                 text: root.activePlayer ? root.formatTrackTime(root.activePlayer.length) : "0:00"

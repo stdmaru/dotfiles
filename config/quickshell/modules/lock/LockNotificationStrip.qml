@@ -317,6 +317,7 @@ Item {
               y: 0
               text: appCountRoller.displayedLabel
               color: Theme.crust
+              font.family: Theme.font_ui
               font.pixelSize: 9
               font.weight: Font.Bold
             }
@@ -328,6 +329,7 @@ Item {
               opacity: 0
               text: appCountRoller.incomingLabel
               color: Theme.crust
+              font.family: Theme.font_ui
               font.pixelSize: 9
               font.weight: Font.Bold
             }
@@ -390,6 +392,7 @@ Item {
           anchors.centerIn: parent
           text: "…"
           color: Theme.text
+          font.family: Theme.font_ui
           font.pixelSize: 24
           font.weight: Font.DemiBold
         }
@@ -410,6 +413,7 @@ Item {
           anchors.centerIn: parent
           text: `+${groups.count - root.shownAppCount}`
           color: Theme.crust
+          font.family: Theme.font_ui
           font.pixelSize: 9
           font.weight: Font.Bold
         }

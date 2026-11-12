@@ -19,8 +19,8 @@ Button {
 
     background: Rectangle {
         radius: 3
-        color: (root.down || root.active) ? "#58585f" :
-               root.hovered ? "#35353d" :
+        color: (root.down || root.active) ? Theme.surface1 :
+               root.hovered ? Theme.surface0 :
                "transparent"
 
         Behavior on color {

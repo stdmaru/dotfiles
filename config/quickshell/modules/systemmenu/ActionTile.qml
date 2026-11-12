@@ -10,7 +10,7 @@ Rectangle {
 
     signal clicked()
 
-    radius: 11
+    radius: Theme.radius_s
     opacity: enabled ? 1.0 : 0.45
 
     color: !enabled ? Theme.base :
