@@ -25,9 +25,10 @@ Shape {
     property real shoulder: Config.panel_curve
     // Rampa e cantos de baixo usam o mesmo raio (Config.panel_curve).
     property real cornerRadius: shoulder
-    // Raio do filete das laterais "border": o do recorte da moldura, para o
-    // painel brotar dele sem salto.
+    // Raio do filete das laterais "border". Fechado, é o do recorte da
+    // moldura (o painel brota dele sem salto); aberto, chega ao dos painéis.
     property real borderRadius: Config.frame_corner_radius
+        + (shoulder - Config.frame_corner_radius) * fit
 
     readonly property real k: 0.5523   // aproximação de arco por Bézier
     // 0 = fechado, 1 = alto o bastante para os dois arcos completos.

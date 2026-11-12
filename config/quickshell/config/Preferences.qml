@@ -36,8 +36,8 @@ Singleton {
         // da tela. Desligado, a barra flutua.
         property bool frameEnabled: false
         property int frameThickness: 8
-        // Raio de todas as curvas: cantos do recorte da moldura e silhueta dos
-        // painéis que brotam da barra.
+        property int frameCornerRadius: 16
+        // Raio das curvas da silhueta dos painéis que brotam da barra.
         property int panelCurve: 30
         property bool workspacesShowAll: true
         property int workspacesMax: 7
@@ -124,9 +124,12 @@ Singleton {
                         { key: "frameThickness", type: "int", label: "Espessura da moldura", unit: "px",
                           description: "Laterais e base; o topo é a própria barra.",
                           min: 2, max: 24, step: 1, enabledWhen: "frameEnabled" },
-                        { key: "panelCurve", type: "int", label: "Curvatura", unit: "px",
-                          description: "Raio de todas as curvas: os cantos do recorte da moldura e a silhueta dos painéis que brotam da barra (menus, lançador, bandeja e notificações).",
-                          min: 8, max: 48, step: 2 }
+                        { key: "frameCornerRadius", type: "int", label: "Curvatura da moldura", unit: "px",
+                          description: "Cantos do recorte onde ficam as janelas.",
+                          min: 0, max: 48, step: 1, enabledWhen: "frameEnabled" },
+                        { key: "panelCurve", type: "int", label: "Curvatura dos painéis", unit: "px",
+                          description: "Curvas da silhueta dos painéis que brotam da barra (menus, lançador, bandeja e notificações): a rampa até a barra, os cantos de baixo e o encaixe na moldura.",
+                          min: 8, max: 48, step: 1 }
                     ]
                 },
                 {

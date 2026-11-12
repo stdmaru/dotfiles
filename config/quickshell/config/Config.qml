@@ -43,9 +43,9 @@ Singleton {
     // tela, e as janelas ficam no recorte arredondado do meio.
     readonly property bool frame_enabled: Preferences.bar.frameEnabled
     readonly property int frame_thickness: Preferences.bar.frameThickness
-    // Raio de todas as curvas: recorte da moldura e silhueta dos painéis.
+    readonly property int frame_corner_radius: Preferences.bar.frameCornerRadius
+    // Raio das curvas da silhueta dos painéis (DockSilhouette).
     readonly property int panel_curve: Preferences.bar.panelCurve
-    readonly property int frame_corner_radius: panel_curve
     readonly property int app_launcher_top_gap: 5
     readonly property int app_launcher_item_transition_ms: 180
 
