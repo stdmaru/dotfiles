@@ -1,7 +1,0 @@
-(defwidget os_button []
-  (button :class "button tray_icon" :onclick "rofi -show drun -combi-modes 'drun,run' ; sleep 0.001"
-    (label :class "os_icon" :text "󰣇" :tooltip "Aplicativos") ;arch
-    ;(label :class "os_icon" :text "" :tooltip "Aplicativos") ;rocket
-    ;(label :class "os_icon" :text "" :tooltip "Aplicativos") ;terminal
-  )
-)

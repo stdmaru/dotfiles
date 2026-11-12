@@ -12,17 +12,43 @@ Singleton {
     }
 
     function windowExists(address: string): bool {
+        const targetAddress = String(address).replace(/^0x/i, "").toLowerCase()
+        if (!targetAddress)
+            return false
+
         for (const win of Hyprland.toplevels.values) {
-            if (win.address === address)
+            if (String(win.address).replace(/^0x/i, "").toLowerCase() === targetAddress)
                 return true
         }
         return false
     }
 
     function dispatchToWindow(address: string) {
-        if(windowExists(address)) {
-            Hyprland.dispatch(`focuswindow address:0x${address}`)
-        }
+        const targetAddress = String(address).replace(/^0x/i, "").toLowerCase()
+        if (!targetAddress)
+            return
+
+        const window = Hyprland.toplevels.values.find(win =>
+            String(win.address).replace(/^0x/i, "").toLowerCase() === targetAddress
+        )
+        if (!window)
+            return
+
+        const monitor = window.monitor ?? window.workspace?.monitor
+        if (monitor?.name && Hyprland.focusedMonitor?.name !== monitor.name)
+            Hyprland.dispatch(Hyprland.usingLua
+                ? `hl.dsp.focus({ monitor = "${monitor.name}" })`
+                : `focusmonitor ${monitor.name}`)
+
+        // Focusing only the window address can leave the user on the old
+        // workspace. Activate its workspace first, then focus the client.
+        if (window.workspace && !window.workspace.focused)
+            window.workspace.activate()
+
+        const windowSelector = `address:0x${targetAddress}`
+        Hyprland.dispatch(Hyprland.usingLua
+            ? `hl.dsp.focus({ window = "${windowSelector}" })`
+            : `focuswindow ${windowSelector}`)
     }
 
     Connections {

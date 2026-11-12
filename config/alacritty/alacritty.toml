@@ -1,7 +1,13 @@
 [window]
-opacity = 0.9
+opacity = 0.95
 padding = { x = 4, y = 4 }
+blur = true
 
 [font]
 normal = { family = "MesloLGS NF", style = "Regular" }
 size = 10 #11.25 default
+
+[[keyboard.bindings]]
+key = "Return"
+mods = "Shift"
+chars = "\u001B\r"

@@ -10,11 +10,38 @@ SwipeDelegate {
     id: root
     required property var modelData;
     required property string scene;
+    property string avatarSource: ""
+    property string displayBody: ""
+    property var groupedNotifications: []
     
     property int implicitHeightCollapsed: 76
 
-    property bool isDeleted: modelData.isDeleted
     property bool expand: false
+    property bool isExiting: false
+    // Expansion is driven by one progress value. The text viewport and the
+    // card's implicit height therefore move together instead of the card
+    // starting a second, lagging height animation.
+    property real expandProgress: 0
+    property real exitProgress: 0
+    readonly property string expandedBodyText: {
+        const body = String(root.displayBody || root.modelData.body || "")
+        const limit = Config.notification_body_max_chars
+        if (body.length <= limit)
+            return body
+
+        return `${body.slice(0, limit).replace(/\s+$/, "")}…`
+    }
+    readonly property bool popupActive: root.scene === "popup"
+        && Notifications.indexOf(Notifications.popups, root.modelData) >= 0
+    readonly property bool popupPointerInside: root.scene === "popup"
+        && popupPointerArea.containsMouse
+
+    onPopupActiveChanged: {
+        if (!popupActive) {
+            timer.stop()
+            exitTimer.stop()
+        }
+    }
 
     // Time display
     property string relativeTime
@@ -27,27 +54,103 @@ SwipeDelegate {
 
     background: null
 
+    clip: true
     implicitHeight: container.implicitHeight + topPadding + bottomPadding
-    height: expand ? implicitHeight : implicitHeightCollapsed
-    z: -1
+    height: implicitHeight * Math.max(0, 1 - exitProgress)
+    opacity: Math.max(0, 1 - exitProgress)
+
+    Behavior on expandProgress {
+        NumberAnimation {
+            duration: Config.notification_expand_ms
+            easing.type: Easing.BezierSpline
+            easing.bezierCurve: Config.motion_spatial_curve
+        }
+    }
+
+    Behavior on exitProgress {
+        NumberAnimation {
+            duration: Config.notification_panel_ms
+            easing.type: Easing.BezierSpline
+            // Avoid the spatial curve's overshoot here: clamping an overshoot
+            // to zero makes the toast look as if it vanishes instantly.
+            easing.bezierCurve: Config.motion_effect_curve
+        }
+    }
+
+    onExpandChanged: expandProgress = expand ? 1 : 0
 
     Timer {
         id: timer
-        running: root.scene === "popup"
-        interval: root.modelData.expireTimeout > 0 ? root.modelData.expireTimeout : 4_000
+        interval: root.modelData.expireTimeout > 0
+            ? Math.round(root.modelData.expireTimeout * 1000)
+            : 4_000
         onTriggered: {
-            root.expand = false
-            root.modelData.isPopup = false
-            root.isDeleted = true
-            root.height = 0
-            root.opacity = 0
+            if (!root.popupActive || root.modelData.popupHovered || root.popupPointerInside) {
+                stop()
+                return
+            }
+
+            root.beginExit(false)
+        }
+    }
+
+    // Reconcile the model hover flag with the actual pointer position. This
+    // covers missed enter/leave events from layer-shell pointer handlers.
+    Timer {
+        id: hoverReconcileTimer
+        interval: 100
+        repeat: true
+        running: root.popupActive
+        onTriggered: root.syncPopupHover()
+    }
+
+    Timer {
+        id: exitTimer
+        // Let the visual animation finish before removing the model row.
+        interval: Config.notification_panel_ms + 80
+        onTriggered: {
+            // A clear-all request owns removal timing so every card can run
+            // its exit animation together before the history is discarded.
+            if (root.scene === "tray" && root.modelData.trayExitRequested)
+                return
+
+            if (root.scene === "popup" && !exitTimer.dismissPermanently
+                    && !Notifications.expirePopup(root.modelData)) {
+                root.isExiting = false
+                root.exitProgress = 0
+                return
+            }
+
+            if (root.scene !== "popup" || exitTimer.dismissPermanently) {
+                if (root.scene === "tray" && root.groupedNotifications.length > 1)
+                    Notifications.dismissNotificationGroup(root.groupedNotifications)
+                else
+                    Notifications.dismissNotification(root.modelData)
+            }
+        }
+
+        property bool dismissPermanently: false
+    }
+
+    Connections {
+        target: root.modelData
+
+        function onTrayExitRequestedChanged() {
+            if (root.scene !== "tray" || !root.modelData.trayExitRequested)
+                return
+
+            // Restart the timer if this card was already swiped when
+            // Clear was pressed, keeping all cards in the same animation.
+            exitTimer.stop()
+            root.isExiting = false
+            root.beginExit(true)
         }
     }
 
     Timer {
         id: relativeTimer
         repeat: true
-        running: !root.isDeleted
+        running: true
         interval: root.currentInterval
 
         onTriggered: root.updateRelativeTime()
@@ -84,17 +187,68 @@ SwipeDelegate {
         return -1                // não precisa mais atualizar
     }
 
-    Component.onCompleted: updateRelativeTime()
+    function beginExit(dismissPermanently) {
+        if (root.isExiting)
+            return
+        if (root.scene === "popup" && !root.popupActive && !dismissPermanently)
+            return
+        if (root.scene === "popup" && root.modelData.popupHovered && !dismissPermanently)
+            return
+
+        root.isExiting = true
+        root.exitProgress = 1
+        exitTimer.dismissPermanently = dismissPermanently
+        exitTimer.start()
+
+        // Publish the pending removal only after exitProgress has started so
+        // showing the empty state cannot interrupt the delegate transition.
+        if (root.scene === "tray" && dismissPermanently) {
+            root.modelData.trayDismissPending = true
+            for (const notification of root.groupedNotifications)
+                notification.trayDismissPending = true
+        }
+    }
+
+    function cancelAutomaticExit() {
+        if (root.scene !== "popup" || !root.isExiting || exitTimer.dismissPermanently)
+            return
+
+        exitTimer.stop()
+        root.isExiting = false
+        root.exitProgress = 0
+    }
+
+    function syncPopupHover() {
+        if (!root.popupActive)
+            return
+
+        const inside = root.popupPointerInside
+        const changed = root.modelData.popupHovered !== inside
+        root.modelData.popupHovered = inside
+        if (inside) {
+            timer.stop()
+            root.cancelAutomaticExit()
+        } else if (!root.isExiting && (changed || !timer.running)) {
+            // Restart from the full timeout after the cursor leaves.
+            timer.restart()
+        }
+    }
+
+    Component.onCompleted: {
+        updateRelativeTime()
+        syncPopupHover()
+        if (root.scene === "tray" && root.modelData.trayExitRequested)
+            root.beginExit(true)
+    }
 
     HoverHandler {
+        id: popupHover
+        target: root
         onHoveredChanged: {
-            if (hovered) {
-                if(root.scene === "popup") timer.stop()
+            if (hovered)
                 container.color = "#3c3d4c"
-            } else {
-                if(root.scene === "popup") timer.start()
+            else
                 container.color = "#45475a"
-            }
         }
         cursorShape: (root.pressed) ? Qt.ClosedHandCursor : Qt.PointingHandCursor
     }
@@ -104,8 +258,8 @@ SwipeDelegate {
         acceptedButtons: Qt.AllButtons
         
         onTapped: {
-            if(root.isDeleted) return
-            root.expand = !root.expand
+            if (!root.isExiting && !actionsFlowHover.hovered && !replyRowHover.hovered)
+                root.expand = !root.expand
         }
     }
 
@@ -118,25 +272,7 @@ SwipeDelegate {
     }
 
     swipe.onCompleted: {
-        if(root.scene === "popup") {
-            root.modelData.isPopup = false
-        }
-        else if(root.scene === "tray") {
-            root.modelData.isDeleted = true
-        }
-
-        root.isDeleted = true
-        root.opacity = 0
-        root.height = 0
-    }
-
-    Behavior on opacity {
-        NumberAnimation{ duration: 400; easing.type: Easing.BezierSpline; easing.bezierCurve: [0.2, 0, 0, 1, 1, 1] }
-    }
-
-    Behavior on height {
-        enabled: root.isDeleted
-        NumberAnimation{ duration: 400; easing.type: Easing.BezierSpline; easing.bezierCurve: [0.2, 0, 0, 1, 1, 1] }
+        root.beginExit(true)
     }
 
     contentItem: Rectangle {
@@ -147,6 +283,14 @@ SwipeDelegate {
         color: "#45475a"
         radius: 10
         clip: true
+        scale: root.pressed ? 0.99 : 1
+
+        Behavior on color {
+            ColorAnimation { duration: Config.ui_color_ms; easing.type: Easing.BezierSpline; easing.bezierCurve: Config.motion_effect_curve }
+        }
+        Behavior on scale {
+            NumberAnimation { duration: root.pressed ? Config.ui_press_ms : Config.ui_hover_ms; easing.type: Easing.BezierSpline; easing.bezierCurve: Config.motion_fast_effect_curve }
+        }
 
         Rectangle {
             id: innerContent
@@ -173,9 +317,12 @@ SwipeDelegate {
 
                 Image {
                     id: img
-                    source: root.modelData.image
+                    source: root.avatarSource || root.modelData.image
                     width: avatar.width
                     height: avatar.height
+                    sourceSize: Qt.size(Math.ceil(width * 2), Math.ceil(height * 2))
+                    smooth: true
+                    mipmap: true
                     //fillMode: Image.PreserveAspectCrop
                     z: 1
 
@@ -187,6 +334,26 @@ SwipeDelegate {
                             radius: avatar.radius
                             color: "white"   // alpha = 1
                         }
+                    }
+
+                    // qsimage URLs are owned by the notification service and
+                    // become invalid after Quickshell restarts. Capture only
+                    // those transient images once, then the controller stores
+                    // a small PNG data payload in the notification history.
+                    onStatusChanged: {
+                        if (status !== Image.Ready
+                                || root.modelData.imageBase64
+                                || !String(root.modelData.image).startsWith("image://qsimage/"))
+                            return
+
+                        const imageId = `${root.modelData.id}-${root.modelData.createdAt}`
+                        const tempPath = `/tmp/quickshell-notification-image-${imageId}-${Math.random().toString(36).slice(2)}.png`
+                        img.grabToImage(function(result) {
+                            if (result && result.saveToFile(tempPath))
+                                Notifications.captureNotificationImage(root.modelData, tempPath)
+                            else
+                                Notifications.queueTempImageRemoval(tempPath)
+                        }, Qt.size(96, 96))
                     }
                 }
 
@@ -207,28 +374,58 @@ SwipeDelegate {
                 anchors.left: avatar.right
 
                 width: parent.width - avatar.width - 10
-                implicitHeight: body.y + body.implicitHeight + 10
+                implicitHeight: detailsBottom + 10
+                readonly property real detailsBottom: replyRow.visible
+                    ? replyRow.y + replyRow.height
+                    : actionsFlow.visible
+                        ? actionsFlow.y + actionsFlow.height
+                        : body.y + body.height
                 
                 TextMetrics {
                     id: titleText
                     text: root.modelData.summary
                 }
 
-                Text {
+                Row {
                     id: appName
                     anchors.top: content.top
+                    anchors.left: content.left
+                    anchors.topMargin: 5
+                    anchors.leftMargin: 5
+                    height: Math.max(16, Math.ceil(appNameText.implicitHeight / 2) * 2)
+                    spacing: 4
                     opacity: root.expand ? 1 : 0
 
-                    font.family: Config.main_font
-                    text: root.modelData.appName
-                    font.pointSize: 11
-                    color: "#b1b1b5"
-                    topPadding: 5
-                    leftPadding: 5
-                    maximumLineCount: 1
+                    Image {
+                        width: 16
+                        height: 16
+                        anchors.verticalCenter: parent.verticalCenter
+                        source: Utils.getAppIcon(
+                            root.modelData.desktopEntry || root.modelData.appName || "",
+                            "application-x-executable"
+                        )
+                        fillMode: Image.PreserveAspectFit
+                        sourceSize: Qt.size(32, 32)
+                        smooth: true
+                        mipmap: true
+                        asynchronous: true
+                    }
+
+                    Text {
+                        id: appNameText
+                        width: Math.min(implicitWidth, Math.max(0, content.width * 0.5 - 22))
+                        height: parent.height
+                        text: root.modelData.appName || "Aplicativo"
+                        font.family: Config.main_font
+                        font.pointSize: 11
+                        color: "#b1b1b5"
+                        maximumLineCount: 1
+                        elide: Text.ElideRight
+                        verticalAlignment: Text.AlignVCenter
+                    }
 
                     Behavior on opacity {
-                        NumberAnimation { duration: 400; easing.type: Easing.BezierSpline; easing.bezierCurve: [0.2, 0, 0, 1, 1, 1]}
+                        NumberAnimation { duration: Config.notification_fade_ms; easing.type: Easing.BezierSpline; easing.bezierCurve: Config.motion_effect_curve }
                     }
                 }
 
@@ -258,7 +455,7 @@ SwipeDelegate {
                     
                     transitions: [
                         Transition{
-                            AnchorAnimation { duration: 400; easing.type: Easing.BezierSpline; easing.bezierCurve: [0.2, 0, 0, 1, 1, 1] }
+                            AnchorAnimation { duration: Config.notification_slide_ms; easing.type: Easing.BezierSpline; easing.bezierCurve: Config.motion_spatial_curve }
                         }
                     ]
                 }
@@ -292,9 +489,9 @@ SwipeDelegate {
                     transitions: [
                         Transition {
                             AnchorAnimation {
-                                duration: 400
+                                duration: Config.notification_slide_ms
                                 easing.type: Easing.BezierSpline
-                                easing.bezierCurve: [0.2, 0, 0, 1, 1, 1]
+                                easing.bezierCurve: Config.motion_spatial_curve
                             }
                         }
                     ]
@@ -331,7 +528,7 @@ SwipeDelegate {
             
                 TextMetrics {
                     id: bodyText
-                    text: root.modelData.body
+                    text: root.expandedBodyText
                     //text: "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."
                     elide: Text.ElideRight
                     elideWidth: content.width - 50
@@ -347,40 +544,181 @@ SwipeDelegate {
                     font.pointSize: 10
                     color: "#b1b1b5"
                     leftPadding: 4
-                    maximumLineCount: root.expand ? 999 : 1
+                    maximumLineCount: 999
+                    height: collapsedBody.implicitHeight
+                        + (implicitHeight - collapsedBody.implicitHeight) * root.expandProgress
+                    clip: true
 
-                    states: [
-                        State{
-                            name: "expanded"
-                            when: root.expand === true
-                            PropertyChanges {
-                                body.maximumLineCount: undefined
-                                body.text: bodyText.text
+                    // Measure the collapsed one-line viewport separately;
+                    // the visible Text keeps its full content height so its
+                    // viewport can reveal it continuously.
+                    Text {
+                        id: collapsedBody
+                        width: body.width
+                        text: body.text
+                        font: body.font
+                        wrapMode: body.wrapMode
+                        leftPadding: body.leftPadding
+                        maximumLineCount: 1
+                        visible: false
+                    }
+                }
+
+                Flow {
+                    id: actionsFlow
+                    anchors.top: body.bottom
+                    anchors.topMargin: 8
+                    width: parent.width
+                    spacing: 6
+                    visible: root.expand && root.modelData.actions
+                        && root.modelData.actions.length > 0
+                    height: visible ? implicitHeight : 0
+
+                    HoverHandler { id: actionsFlowHover }
+
+                    Repeater {
+                        model: root.modelData.actions ?? []
+
+                        delegate: Rectangle {
+                            id: actionButton
+                            required property var modelData
+
+                            width: Math.min(actionLabel.implicitWidth + 22, actionsFlow.width)
+                            height: 30
+                            radius: 8
+                            enabled: !!root.modelData.sourceNotification
+                            opacity: enabled ? 1 : 0.48
+                            color: !enabled ? "#272838"
+                                : actionHover.hovered ? "#89b4fa" : "#313244"
+
+                            Behavior on color {
+                                ColorAnimation {
+                                    duration: Config.ui_color_ms
+                                    easing.type: Easing.BezierSpline
+                                    easing.bezierCurve: Config.motion_effect_curve
+                                }
+                            }
+
+                            Text {
+                                id: actionLabel
+                                anchors.centerIn: parent
+                                width: parent.width - 12
+                                text: actionButton.modelData.text
+                                color: !actionButton.enabled ? "#7f849c"
+                                    : actionHover.hovered ? "#11111b" : "#cdd6f4"
+                                font.family: Config.main_font
+                                font.pointSize: 9
+                                horizontalAlignment: Text.AlignHCenter
+                                elide: Text.ElideRight
+                            }
+
+                            HoverHandler { id: actionHover }
+
+                            TapHandler {
+                                enabled: actionButton.enabled
+                                acceptedButtons: Qt.LeftButton
+                                onTapped: {
+                                    if (Notifications.activateAction(root.modelData, actionButton.modelData.identifier)) {
+                                        root.beginExit(true)
+                                        Notifications.trayOpen = false
+                                    }
+                                }
                             }
                         }
-                    ]
+                    }
+                }
 
-                    transitions: [
-                        Transition {
-                            PropertyAction {
-                                target: body
-                                property: "maximumLineCount"
-                            }
-                            AnchorAnimation {
-                                duration: 400
-                                easing.type: Easing.BezierSpline
-                                easing.bezierCurve: [0.2, 0, 0, 1, 1, 1]
-                            }
+                Row {
+                    id: replyRow
+                    anchors.top: actionsFlow.visible ? actionsFlow.bottom : body.bottom
+                    anchors.topMargin: 8
+                    width: parent.width
+                    height: visible ? 38 : 0
+                    spacing: 6
+                    visible: root.expand && root.modelData.hasInlineReply
+
+                    HoverHandler { id: replyRowHover }
+
+                    TextField {
+                        id: replyInput
+                        width: parent.width - sendReplyButton.width - parent.spacing
+                        height: parent.height
+                        placeholderText: root.modelData.inlineReplyPlaceholder || qsTr("Responder…")
+                        color: "#cdd6f4"
+                        font.family: Config.main_font
+                        font.pointSize: 9
+                        enabled: !!root.modelData.sourceNotification
+                        selectByMouse: true
+                        leftPadding: 10
+                        rightPadding: 10
+                        onAccepted: sendReply()
+
+                        background: Rectangle {
+                            radius: 8
+                            color: "#181825"
+                            border.width: replyInput.activeFocus ? 1 : 0
+                            border.color: "#89b4fa"
                         }
-                    ]
+
+                        function sendReply() {
+                            const replyText = text
+                            if (!replyText.trim())
+                                return
+
+                            text = ""
+                            if (Notifications.sendInlineReply(root.modelData, replyText))
+                                root.beginExit(true)
+                            else
+                                text = replyText
+                        }
+                    }
+
+                    Rectangle {
+                        id: sendReplyButton
+                        width: 38
+                        height: parent.height
+                        radius: 8
+                        enabled: !!root.modelData.sourceNotification
+                        opacity: enabled ? 1 : 0.48
+                        color: enabled && sendReplyHover.hovered ? "#89b4fa" : "#313244"
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "➤"
+                            color: sendReplyHover.hovered ? "#11111b" : "#cdd6f4"
+                            font.pointSize: 11
+                        }
+
+                        HoverHandler { id: sendReplyHover }
+                        TapHandler {
+                            enabled: sendReplyButton.enabled
+                            acceptedButtons: Qt.LeftButton
+                            onTapped: replyInput.sendReply()
+                        }
+                    }
                 }
 
                 Behavior on opacity {
-                    NumberAnimation { duration: 400; easing.type: Easing.BezierSpline; easing.bezierCurve: [0.2, 0, 0, 1, 1, 1]}
+                    NumberAnimation { duration: Config.notification_fade_ms; easing.type: Easing.BezierSpline; easing.bezierCurve: Config.motion_effect_curve }
                 }
                 
             }
             
         }
+    }
+
+    // A no-button MouseArea provides a direct hover signal for layer-shell
+    // windows while leaving taps and action buttons available underneath.
+    MouseArea {
+        id: popupPointerArea
+        anchors.fill: parent
+        z: 100
+        visible: root.scene === "popup"
+        hoverEnabled: true
+        acceptedButtons: Qt.NoButton
+        propagateComposedEvents: true
+
+        onEntered: root.syncPopupHover()
+        onExited: root.syncPopupHover()
     }
 }

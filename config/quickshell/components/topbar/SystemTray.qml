@@ -1,10 +1,9 @@
 pragma ComponentBehavior: Bound
 
-import qs.components.common
+import qs.controllers
 import QtQuick
 import Quickshell
 import Quickshell.Services.SystemTray
-import Quickshell.Widgets
 
 Row {
     id: root
@@ -26,19 +25,14 @@ Row {
             height: 18
             required property SystemTrayItem modelData
             
-            IconImage {
+            Image {
+                anchors.fill: parent
                 source: item.modelData.icon
-                implicitSize: parent.height
-            }
-
-            Tooltip {
-                id: tooltip
-                text: {
-                    if(item.modelData.title !== "")
-                        return item.modelData.title
-                    else if(item.modelData.tooltipTitle !== "")
-                        return item.modelData.tooltipTitle
-                }
+                sourceSize: Qt.size(parent.width * 2, parent.height * 2)
+                fillMode: Image.PreserveAspectFit
+                smooth: true
+                mipmap: true
+                asynchronous: true
             }
 
             MouseArea {
@@ -57,11 +51,14 @@ Row {
                     }
                 }
                 onEntered: {
-                    if (tooltip.text && tooltip.text !== "")
-                        tooltip.showFor(root);
+                    const text = item.modelData.title !== ""
+                        ? item.modelData.title
+                        : item.modelData.tooltipTitle
+                    if (text)
+                        TooltipManager.show(mouse, text)
                 }
                 onExited: {
-                    tooltip.hide();
+                    TooltipManager.hide(mouse)
                 }
             }
         }

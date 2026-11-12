@@ -24,6 +24,13 @@ Row {
         return Hyprland.workspaces.values.find(ws => ws.id === id)
     }
 
+    function dispatchWorkspace(id) {
+        const request = Hyprland.usingLua
+            ? `hl.dsp.focus({ workspace = ${id} })`
+            : `workspace ${id}`
+        Hyprland.dispatch(request)
+    }
+
     function isWorkspaceEmpty(ws) {
         return ws
             && ws.toplevels
@@ -31,7 +38,7 @@ Row {
     }
 
     function isWorkspaceInRange(ws) {
-        return ws.id <= maxWorkspaces
+        return ws.id >= 1 && ws.id <= maxWorkspaces && ws.id !== 10
     }
 
     function firstFreeWorkspace() {
@@ -60,7 +67,7 @@ Row {
                     id,
                     real: workspaceById(id) ?? null
                 }
-            })
+            }).filter(ws => ws.id !== 10)
         }
 
         // MODO: dinâmico (não vazias + atual)
@@ -97,14 +104,9 @@ Row {
             text: root.labels[modelData.id] ?? modelData.id
             active: Hyprland.focusedWorkspace && Hyprland.focusedWorkspace.id === modelData.id
             onClicked: {
-                if (modelData.real) {
-                    if (Hyprland.focusedWorkspace
-                        && Hyprland.focusedWorkspace.id !== modelData.id) {
-                        modelData.real.activate()
-                    }
-                } else {
-                    Hyprland.dispatch("workspace " + modelData.id)
-                }
+                if (!Hyprland.focusedWorkspace
+                    || Hyprland.focusedWorkspace.id !== modelData.id)
+                    root.dispatchWorkspace(modelData.id)
             }
         }
     }
@@ -122,7 +124,7 @@ Row {
         onClicked: {
             const ws = root.firstFreeWorkspace()
             if (ws !== null)
-                Hyprland.dispatch("workspace " + ws)
+                root.dispatchWorkspace(ws)
         }
     }
 }

@@ -1,5 +1,6 @@
 pragma ComponentBehavior: Bound
 
+import qs.config
 import qs.controllers
 import QtQuick
 import QtQuick.Shapes
@@ -7,155 +8,169 @@ import QtQuick.Shapes
 Item {
     id: root
     required property Item attachedTo
+    required property bool isPrimaryScreen
 
-    // Âncoras do container invisível
-    anchors.horizontalCenter: attachedTo.horizontalCenter
+    readonly property real padding: Math.min(10, listView.contentHeight)
+    readonly property real shoulderProgress: Config.notification_panel_emergence > 0
+        ? Math.min(1, Math.max(0, background.height
+            / (Config.notification_panel_emergence + background.bottomLeftRadius)))
+        : 0
+
+    anchors.horizontalCenter: parent.horizontalCenter
     anchors.top: attachedTo.bottom
-    anchors.topMargin: -5
-    
-    width: 470
-    height: background.height
-    
+    anchors.topMargin: root.attachedTo?.barBottom !== undefined ? (root.attachedTo.barBottom - root.attachedTo.height) : (Config.frame_enabled ? Config.frame_thickness : -5)
+    width: Math.min(470, parent.width - 24)
+    height: Math.min(listView.contentHeight + padding * 2, 500)
+    // Keep the ListView active while empty so its add transition also runs
+    // when the first notification arrives.
+    visible: isPrimaryScreen
+
+    Behavior on height {
+        NumberAnimation {
+            duration: Config.notification_panel_ms
+            easing.type: Easing.OutCubic
+        }
+    }
+
     Rectangle {
         id: background
-        anchors.top: parent.top
-        anchors.horizontalCenter: parent.horizontalCenter
-        width: parent.width
+        anchors.fill: parent
         color: "#11111b"
+        topLeftRadius: 0
+        topRightRadius: 0
         bottomLeftRadius: 15
         bottomRightRadius: 15
         clip: true
-        height: (listView.contentHeight > 0) ? listView.contentHeight + 10 : 0
 
         ListView {
             id: listView
-            anchors.top: parent.top
-            anchors.horizontalCenter: parent.horizontalCenter
-            width: root.width - 20
-            height: 1080 // FIXME
-            
-            model: Notifications.all
+            x: root.padding
+            y: root.padding
+            width: Math.max(1, root.width - root.padding * 2)
+            // Keep the delegate viewport alive while the shell's own height
+            // is being derived from contentHeight. The background clips the
+            // excess until the first item has unfolded.
+            height: 500
+            model: Notifications.popups
             interactive: false
             clip: true
-            
-            delegate: Loader {
-                id: loader
+            spacing: 4
+            cacheBuffer: 500
+
+            delegate: Item {
+                id: popupDelegate
                 required property var modelData
-                
-                sourceComponent: NotificationItem {
-                    scene: "popup";
-                    modelData: loader.modelData
-                    width: listView?.width ?? 0;
+
+                width: listView.width
+                implicitHeight: notification.implicitHeight
+                height: notification.height
+                clip: true
+
+                NotificationItem {
+                    id: notification
+                    scene: "popup"
+                    modelData: popupDelegate.modelData
+                    width: popupDelegate.width
                 }
+
             }
 
-            // --- TRANSIÇÕES ---
             add: Transition {
                 ParallelAnimation {
-                    NumberAnimation {properties: "x"; from: listView.width; to: 0; duration: 400; easing.type: Easing.BezierSpline; easing.bezierCurve: [0.2, 0, 0, 1, 1, 1]}
-                    NumberAnimation {properties: "opacity"; from: 0; to: 1; duration: 400; easing.type: Easing.BezierSpline; easing.bezierCurve: [0.2, 0, 0, 1, 1, 1]}
+                    NumberAnimation {
+                        property: "height"
+                        from: 0
+                        duration: Config.notification_panel_ms
+                        easing.type: Easing.BezierSpline
+                        easing.bezierCurve: Config.motion_spatial_curve
+                    }
+                    NumberAnimation {
+                        property: "opacity"
+                        from: 0
+                        duration: Config.notification_fade_ms
+                        easing.type: Easing.BezierSpline
+                        easing.bezierCurve: Config.motion_effect_curve
+                    }
                 }
             }
-            displaced: Transition {
+
+            remove: Transition {
                 ParallelAnimation {
-                    NumberAnimation {property: "y"; duration: 400; easing.type: Easing.BezierSpline; easing.bezierCurve: [0.2, 0, 0, 1, 1, 1]}
-                    NumberAnimation {property: "opacity"; to: 1; duration: 400; easing.type: Easing.BezierSpline; easing.bezierCurve: [0.2, 0, 0, 1, 1, 1] }
+                    NumberAnimation {
+                        property: "height"
+                        to: 0
+                        duration: Config.notification_panel_ms
+                        easing.type: Easing.BezierSpline
+                        easing.bezierCurve: Config.motion_spatial_curve
+                    }
+                    NumberAnimation {
+                        property: "opacity"
+                        to: 0
+                        duration: Config.notification_panel_ms
+                        easing.type: Easing.BezierSpline
+                        easing.bezierCurve: Config.motion_effect_curve
+                    }
+                }
+            }
+
+            displaced: Transition {
+                NumberAnimation {
+                    properties: "y"
+                    duration: Config.notification_panel_ms
+                    easing.type: Easing.BezierSpline
+                    easing.bezierCurve: Config.motion_spatial_curve
                 }
             }
         }
     }
 
-    // Top left corner
+    // Mirror the tray's curved shoulders so the popup stack grows out of the
+    // topbar rather than appearing as a detached rectangle.
     Shape {
-        id: shape_left
-
-        // User defined
-        property double rounding: 20
-        property double roundingSize: (rounding > background.height / 2) ? background.height / 2 : rounding // Corner cannot be bigger than height / 2
-
-        // Altura e largura da borda, para uma curvatura perfeita, definir a proporção 1:1
-        property double lineSizeX: roundingSize // Largura da borda
-        property double lineSizeY: roundingSize // Altura da borda
+        id: leftDockShoulder
+        readonly property real growth: Config.notification_panel_emergence * root.shoulderProgress
+        x: background.x - width
+        y: background.y
+        width: Config.notification_panel_emergence
+        height: growth
+        visible: width > 0 && height > 0
+        z: 2
 
         ShapePath {
-            strokeWidth: 0
-            strokeColor: "transparent"
             fillColor: background.color
-
-            // ponto inicial: canto superior esquerdo
+            strokeColor: "transparent"
             startX: 0
             startY: 0
-
-            // linha para a esquerda de 20px
-            PathLine {
-                relativeX: -shape_left.lineSizeX
-                relativeY: 0
+            PathCubic {
+                x: leftDockShoulder.width; y: leftDockShoulder.height
+                control1X: leftDockShoulder.width * 0.5523; control1Y: 0
+                control2X: leftDockShoulder.width; control2Y: leftDockShoulder.height * 0.4477
             }
-
-            // Linha para baixo-direita de 20px, aplicando arredondamento de 20px
-            PathArc {
-                relativeX: shape_left.lineSizeX
-                relativeY: shape_left.lineSizeY
-                radiusX: shape_left.roundingSize
-                radiusY: shape_left.roundingSize
-            }
-
-            // linha para cima de 20px
-            PathLine {
-                relativeX: 0
-                relativeY: -shape_left.lineSizeY
-            }
+            PathLine { x: leftDockShoulder.width; y: 0 }
         }
     }
 
-    // Top right corner
     Shape {
-        id: shape_right
-        // User defined
-        property double rounding: 20
-        property double roundingSize: (rounding > background.height / 2) ? background.height / 2 : rounding
-
-        // Altura e largura da borda, para uma curvatura perfeita, definir a proporção 1:1
-        property double lineSizeX: roundingSize // Largura da borda
-        property double lineSizeY: roundingSize // Altura da borda
+        id: rightDockShoulder
+        x: background.x + background.width
+        readonly property real growth: Config.notification_panel_emergence * root.shoulderProgress
+        y: background.y
+        width: Config.notification_panel_emergence
+        height: growth
+        visible: width > 0 && height > 0
+        z: 2
 
         ShapePath {
-            strokeWidth: 0
-            strokeColor: "transparent"
             fillColor: background.color
-
-            // ponto inicial: canto superior direito
-            startX: background.width
+            strokeColor: "transparent"
+            startX: rightDockShoulder.width
             startY: 0
-
-            // linha para a direita de 20px
-            PathLine {
-                relativeX: shape_right.lineSizeX
-                relativeY: 0
+            PathCubic {
+                x: 0; y: rightDockShoulder.height
+                control1X: rightDockShoulder.width * 0.4477; control1Y: 0
+                control2X: 0; control2Y: rightDockShoulder.height * 0.4477
             }
-
-            // Linha para baixo-esquerda de 20px, aplicando arredondamento de 20px
-            PathArc {
-                relativeX: -shape_right.lineSizeX
-                relativeY: shape_right.lineSizeY
-                radiusX: shape_right.roundingSize
-                radiusY: shape_right.roundingSize
-                direction: PathArc.Counterclockwise
-            }
-
-            // linha para cima de 20px
-            PathLine {
-                relativeX: 0
-                relativeY: -shape_right.lineSizeY
-            }
+            PathLine { x: 0; y: 0 }
         }
-    }
-
-    // Bloqueador de cliques
-    MouseArea {
-        z: -1
-        anchors.fill: background
-        acceptedButtons: Qt.AllButtons
-        onClicked: {}
     }
 }

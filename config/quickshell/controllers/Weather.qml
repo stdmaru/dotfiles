@@ -13,7 +13,7 @@ Singleton {
     property var _forecast
 
     property bool hasData: false
-    property string glyph: ""
+    property string glyph: "\ue226"
     property double tempCurrent: 0
     property double tempMin: 0
     property double tempMax: 0
@@ -22,6 +22,7 @@ Singleton {
     property string region: ""
     property string state: ""
     property string country: ""
+    property var forecast: []
 
     readonly property int forecastIntervalMin: 6 * 60     // Forecast reload interval in 6h
     readonly property int conditionIntervalMin: 60        // Condition reload interval in 1h
@@ -154,6 +155,7 @@ Singleton {
         root.region = weather.location.name ?? ""
         root.state = weather.location.state ?? ""
         root.country = weather.location.country ?? ""
+        root.forecast = weather.forecast ?? []
 
         root.hasData = true
     }
@@ -263,26 +265,31 @@ Singleton {
     function getGlyph(icon): string {
         switch(icon)
         {
-            case "01d": return ""; // clear sky
-            case "01n": return ""; 
-            case "02d": return ""; // few clouds
-            case "02n": return "";
-            case "03d": return ""; // scattered clouds
-            case "03n": return "";
-            case "04d": return ""; // broken clouds
-            case "04n": return "";
-            case "09d": return ""; // shower rain
-            case "09n": return "";
-            case "10d": return ""; // rain
-            case "10n": return "";
-            case "11d": return ""; // thunderstorm
-            case "11n": return "";
-            case "13d": return ""; // snow
-            case "13n": return "";
-            case "50d": return ""; // mist 
-            case "50n": return "";
+            case "01d": return "\uf185"; // Sun
+            case "01n": return "\uf186"; // Moon
+
+            case "02d": return "\ueef0"; // Few clouds
+            case "02n": return "\ueeef"; // -- Small cloud with sun/moon
+
+            case "03d": return "\ue21d"; // Scattered clouds
+            case "03n": return "\ue226"; // -- Great cloud with sun/moon
+
+            case "04d": return "\uf0c2"; // Broken clouds
+            case "04n": return "\uf0c2"; // -- Full clouds
+
+            case "09d": return "\uef1e"; // Shower rain
+            case "09n": return "\uef1b"; // -- Rain with sun/moon
+            case "10d": return "\uef1e"; // Rain
+            case "10n": return "\uef1b"; // -- Rain with sun/moon
+            
+            case "11d": return "\ue208"; // Thunderstorm
+            case "11n": return "\ue208";
+            case "13d": return "\uf2dc"; // Snow
+            case "13n": return "\uf2dc";
+            case "50d": return "\ue303"; // Mist / haze
+            case "50n": return "\ue346";
     
-            default: return "?";
+            default: return "\ue226";
         }
     }
 }

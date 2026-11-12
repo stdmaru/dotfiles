@@ -1,5 +1,0 @@
-#!/bin/sh
-type=$(ip route get 8.8.8.8 | grep -Po 'dev \K\w+' | grep -qFf - /proc/net/wireless && echo wireless || echo wired;)
-connected=$(ping -c 1 google.com > /dev/null 2>&1 && echo true || echo false;)
-
-echo \{\"type\":\"$type\",\"connected\":\"$connected\"\}

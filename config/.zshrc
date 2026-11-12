@@ -170,3 +170,14 @@ source $HOME/.local/share/zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlig
 
 # To customize prompt, run `p10k configure` or edit ~/dotfiles/config/zsh/.p10k.zsh.
 [[ ! -f ~/dotfiles/config/zsh/.p10k.zsh ]] || source ~/dotfiles/config/zsh/.p10k.zsh
+export PATH="$HOME/.local/bin:$PATH"
+
+# SLSsteam: Add wrapper to PATH
+export PATH="$HOME/.local/share/SLSsteam/path:$PATH"
+
+
+# Added by Antigravity CLI installer
+export PATH="/home/maru/.local/bin:$PATH"
+
+export AI_MEMORY_SERVER_URL="https://memory.mdeb.com.br"
+export AI_MEMORY_AUTH_TOKEN=1dd44a1cece8daebea61e0fded36e75f98fe2bf5085ea5e7c89cb9b071e08d7f

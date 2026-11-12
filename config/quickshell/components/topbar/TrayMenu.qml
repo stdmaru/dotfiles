@@ -64,7 +64,7 @@ Rectangle {
                 to: "open"
 
                 ParallelAnimation {
-                    NumberAnimation { properties: "opacity"; from: 0; to: 1; duration: 100; easing.type: Easing.BezierSpline; easing.bezierCurve: [0.2, 0, 0, 1, 1, 1] }
+                    NumberAnimation { properties: "opacity"; from: 0; to: 1; duration: Config.motion_effect_ms; easing.type: Easing.BezierSpline; easing.bezierCurve: Config.motion_effect_curve }
                 }
             },
 
@@ -73,7 +73,7 @@ Rectangle {
                 to: "closed"
 
                 ParallelAnimation {
-                    NumberAnimation { properties: "opacity"; from: 1; to: 0; duration: 100; easing.type: Easing.BezierSpline; easing.bezierCurve: [0.2, 0, 0, 1, 1, 1] }
+                    NumberAnimation { properties: "opacity"; from: 1; to: 0; duration: Config.motion_effect_ms; easing.type: Easing.BezierSpline; easing.bezierCurve: Config.motion_effect_curve }
                 }
 
                 onRunningChanged: {
@@ -97,9 +97,9 @@ Rectangle {
 
         Behavior on height {
             NumberAnimation {
-                duration: 200
-                easing.type: Easing.BezierSpline;
-                easing.bezierCurve: [0.2, 0, 0, 1, 1, 1]
+                duration: Config.motion_spatial_ms
+                easing.type: Easing.BezierSpline
+                easing.bezierCurve: Config.motion_spatial_curve
             }
         }
 
@@ -117,29 +117,29 @@ Rectangle {
 
             pushEnter: Transition {
                 ParallelAnimation {
-                    NumberAnimation { property: "x"; from: menuContainer.width; to: 0; duration: 400; easing.type: Easing.BezierSpline; easing.bezierCurve: [0.2, 0, 0, 1, 1, 1] }
-                    NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 400; easing.type: Easing.BezierSpline; easing.bezierCurve: [0.2, 0, 0, 1, 1, 1] }
+                    NumberAnimation { property: "x"; from: menuContainer.width; to: 0; duration: Config.motion_spatial_ms; easing.type: Easing.BezierSpline; easing.bezierCurve: Config.motion_spatial_curve }
+                    NumberAnimation { property: "opacity"; from: 0; to: 1; duration: Config.motion_effect_ms; easing.type: Easing.BezierSpline; easing.bezierCurve: Config.motion_effect_curve }
                 }
             }
 
             pushExit: Transition {
                 ParallelAnimation {
-                    NumberAnimation { property: "x"; from: 0; to: -menuContainer.width; duration: 400; easing.type: Easing.BezierSpline; easing.bezierCurve: [0.2, 0, 0, 1, 1, 1] }
-                    NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 400; easing.type: Easing.BezierSpline; easing.bezierCurve: [0.2, 0, 0, 1, 1, 1] }
+                    NumberAnimation { property: "x"; from: 0; to: -menuContainer.width; duration: Config.motion_spatial_ms; easing.type: Easing.BezierSpline; easing.bezierCurve: Config.motion_spatial_curve }
+                    NumberAnimation { property: "opacity"; from: 1; to: 0; duration: Config.motion_effect_ms; easing.type: Easing.BezierSpline; easing.bezierCurve: Config.motion_effect_curve }
                 }
             }
 
             popEnter: Transition {
                 ParallelAnimation {
-                    NumberAnimation { property: "x"; from: -menuContainer.width; to: 0; duration: 400; easing.type: Easing.BezierSpline; easing.bezierCurve: [0.2, 0, 0, 1, 1, 1] }
-                    NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 400; easing.type: Easing.BezierSpline; easing.bezierCurve: [0.2, 0, 0, 1, 1, 1] }
+                    NumberAnimation { property: "x"; from: -menuContainer.width; to: 0; duration: Config.motion_spatial_ms; easing.type: Easing.BezierSpline; easing.bezierCurve: Config.motion_spatial_curve }
+                    NumberAnimation { property: "opacity"; from: 0; to: 1; duration: Config.motion_effect_ms; easing.type: Easing.BezierSpline; easing.bezierCurve: Config.motion_effect_curve }
                 }
             }
 
             popExit: Transition {
                 ParallelAnimation {
-                    NumberAnimation { property: "x"; from: 0; to: menuContainer.width; duration: 400; easing.type: Easing.BezierSpline; easing.bezierCurve: [0.2, 0, 0, 1, 1, 1] }
-                    NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 400; easing.type: Easing.BezierSpline; easing.bezierCurve: [0.2, 0, 0, 1, 1, 1] }
+                    NumberAnimation { property: "x"; from: 0; to: menuContainer.width; duration: Config.motion_spatial_ms; easing.type: Easing.BezierSpline; easing.bezierCurve: Config.motion_spatial_curve }
+                    NumberAnimation { property: "opacity"; from: 1; to: 0; duration: Config.motion_effect_ms; easing.type: Easing.BezierSpline; easing.bezierCurve: Config.motion_effect_curve }
                 }
             }
 
@@ -231,6 +231,11 @@ Rectangle {
                             source: item.icon
                             width: 16
                             height: 16
+                            sourceSize: Qt.size(32, 32)
+                            fillMode: Image.PreserveAspectFit
+                            smooth: true
+                            mipmap: true
+                            asynchronous: true
                         }
 
                         // Label if applicable

@@ -1,7 +1,7 @@
 import qs.config
+import qs.controllers
 import QtQuick
 import QtQuick.Controls
-import Quickshell.Widgets
 
 Button {
     id: root
@@ -34,12 +34,17 @@ Button {
     contentItem: Row {
         spacing: 10
 
-        IconImage {
+        Image {
             anchors.verticalCenter: parent.verticalCenter
             visible: root.iconSource !== ""
             source: root.iconSource
-            implicitSize: root.iconSize
-            //smooth: true
+            width: root.iconSize
+            height: root.iconSize
+            sourceSize: Qt.size(root.iconSize * 2, root.iconSize * 2)
+            fillMode: Image.PreserveAspectFit
+            smooth: true
+            mipmap: true
+            asynchronous: true
         }
         
         // Default label shown when `text` property is used.
@@ -57,19 +62,11 @@ Button {
         }
     }
 
-    Tooltip {
-        id: tooltip
-        text: root.tooltip
-    }
-
     onHoveredChanged: {
-        if (!tooltip.text || tooltip.text === "")
-            return;
-
-        if (hovered) {
-            tooltip.showFor(root);
+        if (hovered && root.tooltip) {
+            TooltipManager.show(root, root.tooltip);
         } else {
-            tooltip.hide();
+            TooltipManager.hide(root);
         }
     }
 }
