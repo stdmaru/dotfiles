@@ -2,11 +2,13 @@ pragma Singleton
 
 import Quickshell
 
+// Opções do shell. As que o usuário ajusta pela janela de configurações vêm
+// de Preferences (userdata/preferences.json); o resto é fixo aqui.
 Singleton {
     // Monitores
     // A barra, as notificações e o cartão de login ficam no monitor principal.
     // Se ele não estiver conectado, o primeiro monitor disponível assume.
-    readonly property string primary_screen: "DP-2"
+    readonly property string primary_screen: Preferences.behavior.primaryScreen
     // Workspaces vazias reservadas para o bloqueio de sessão, por monitor.
     // Precisam existir como regras persistentes no hyprland.lua.
     readonly property var lock_workspaces: ({ "DP-2": 99, "DP-1": 98 })
@@ -15,20 +17,27 @@ Singleton {
     readonly property var home_workspaces: ({ "DP-2": 1, "DP-1": 10 })
 
     // General
-    readonly property string terminal: "alacritty"
+    readonly property string terminal: Preferences.user.terminal || "alacritty"
     // Foca automaticamente janelas que pedem atenção (evento "urgent").
-    readonly property bool focus_urgent_windows: true
+    readonly property bool focus_urgent_windows: Preferences.behavior.focusUrgentWindows
     readonly property string temperature_metric: "°C"
-    readonly property string gpu_type: "NVIDIA" // NVIDIA; GENERIC; NONE
-    readonly property int topbar_height: 50
-    readonly property int topbar_corner_radius: 12
-    // Distância do topo da tela até a borda inferior da barra.
-    readonly property int bar_bottom: frame_enabled
-        ? (topbar_height - 10 + frame_thickness) : (topbar_height - 5)
-    readonly property bool frame_enabled: false
-    readonly property int frame_thickness: 5
-    readonly property int frame_corner_radius: 7
-    readonly property string frame_color: "#11111b"
+    // NVIDIA, GENERIC ou NONE; vazio detecta sozinho.
+    readonly property string gpu_type: Preferences.bar.gpuType === "auto" ? "" : Preferences.bar.gpuType
+    readonly property int topbar_height: Preferences.bar.height
+    readonly property int topbar_corner_radius: Preferences.bar.cornerRadius
+    // Espessura visível da barra (o fundo escuro). Flutuante, ela fica a
+    // `bar_margin` das bordas da tela; no modo moldura, é a faixa superior
+    // da moldura.
+    readonly property int bar_thickness: topbar_height - 2 * bar_margin
+    readonly property int bar_margin: 5
+    // Distância do topo da tela até a borda inferior da barra, de onde os
+    // painéis brotam.
+    readonly property int bar_bottom: frame_enabled ? bar_thickness : bar_margin + bar_thickness
+    // Modo moldura: a barra vira a faixa de cima de uma moldura em volta da
+    // tela, e as janelas ficam no recorte arredondado do meio.
+    readonly property bool frame_enabled: Preferences.bar.frameEnabled
+    readonly property int frame_thickness: Preferences.bar.frameThickness
+    readonly property int frame_corner_radius: Preferences.bar.frameCornerRadius
     readonly property int app_launcher_top_gap: 5
     readonly property int app_launcher_item_transition_ms: 180
 
@@ -58,16 +67,14 @@ Singleton {
     readonly property int notification_panel_right_weight: 1
     readonly property int notification_panel_inset: 15
     readonly property int notification_body_max_chars: 600
-    // Lock-screen grouping: true = by app only, false = by notification source.
-    readonly property bool notifications_lockscreen_full_privacy: true
-    readonly property bool blur_on_lock: true
-    readonly property bool empty_workspace_on_lock: true
 
     // Workspaces
-    readonly property bool workspaces_showAll: true
-    readonly property int workspaces_max: 7
-    //readonly property var workspaces_labels: ({1: " 1 ", 2: " 2 ", 3: " 3 ", 4: " 4 ", 5: " 5 ", 6: " 6 ", 7: " 7 ", 8: " 8 ", 9: " 9 "}) // Default
-    //readonly property var workspaces_labels: ({1: "\udb84\udc88", 2: "\udb84\udc89", 3: "\udb84\udc8a", 4: "\udb84\udc8b", 5: "\udb84\udc8c", 6: "\udb84\udc8d", 7: "\udb84\udc8e", 8: "\udb84\udc8f", 9: "\udb84\udc90"}) // Roman
-    readonly property var workspaces_labels: ({1: "一", 2: "二", 3: "三", 4: "四", 5: "五", 6: "六", 7: "七", 8: "八", 9: "九"}) // Japanese
-
+    readonly property bool workspaces_showAll: Preferences.bar.workspacesShowAll
+    readonly property int workspaces_max: Preferences.bar.workspacesMax
+    readonly property var workspaces_label_sets: ({
+        numbers: ({}),
+        roman: ({1: "\udb84\udc88", 2: "\udb84\udc89", 3: "\udb84\udc8a", 4: "\udb84\udc8b", 5: "\udb84\udc8c", 6: "\udb84\udc8d", 7: "\udb84\udc8e", 8: "\udb84\udc8f", 9: "\udb84\udc90"}),
+        japanese: ({1: "一", 2: "二", 3: "三", 4: "四", 5: "五", 6: "六", 7: "七", 8: "八", 9: "九"})
+    })
+    readonly property var workspaces_labels: workspaces_label_sets[Preferences.bar.workspaceLabels] ?? ({})
 }

@@ -194,7 +194,7 @@ Item {
                                 width: 40
                                 height: parent.height
                                 checked: Notifications.doNotDisturb
-                                onToggled: Notifications.doNotDisturb = checked
+                                onToggled: Preferences.notifications.doNotDisturb = checked
                                 leftPadding: 0
                                 rightPadding: 0
                                 text: ""

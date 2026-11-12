@@ -16,7 +16,7 @@ Rectangle {
 
   property bool systemTrayCollapsed: false
   property real systemTrayProgress: systemTrayCollapsed ? 0 : 1
-  readonly property real barBottom: mainRect.y + mainRect.height + (Config.frame_enabled ? Config.frame_thickness : 0)
+  readonly property real barBottom: Config.bar_bottom
 
   anchors {
     top: parent.top
@@ -25,7 +25,9 @@ Rectangle {
   }
   color: "transparent"
   implicitWidth: parent.width
-  implicitHeight: Config.frame_enabled ? (Config.topbar_height - 10) : Config.topbar_height
+  // Flutuante, a barra tem margem em volta; no modo moldura ela é a faixa
+  // superior da moldura, que desenha o fundo (ScreenFrame).
+  implicitHeight: Config.frame_enabled ? Config.bar_thickness : Config.topbar_height
   height: implicitHeight
 
   Behavior on systemTrayProgress {
@@ -41,6 +43,7 @@ Rectangle {
     id: systemMenu
     parentWindow: root.parentWindow
     barBottom: root.barBottom
+    toggleButtons: [networkButton, soundButton, powerButton]
   }
 
   Connections {
@@ -61,15 +64,16 @@ Rectangle {
   Rectangle {
     id: mainRect
     anchors.fill: parent
-    anchors.margins: Config.frame_enabled ? 0 : 5
-    color: Theme.crust
+    anchors.margins: Config.frame_enabled ? 0 : Config.bar_margin
+    color: Config.frame_enabled ? "transparent" : Theme.crust
     radius: Config.frame_enabled ? 0 : Config.topbar_corner_radius
 
     RowLayout {
       anchors.fill: parent
       anchors.margins: 3
-      anchors.leftMargin: Config.frame_enabled ? (Config.frame_thickness + 3) : 3
-      anchors.rightMargin: Config.frame_enabled ? (Config.frame_thickness + 3) : 3
+      // Na moldura, os controles se alinham à borda do recorte.
+      anchors.leftMargin: Config.frame_enabled ? Config.frame_thickness : 3
+      anchors.rightMargin: Config.frame_enabled ? Config.frame_thickness : 3
 
       // LEFT
       Item {
@@ -219,7 +223,6 @@ Rectangle {
               text: "\uf6ff"
             }
             tooltip: Network.online ? `Rede (${Network.activeConnection})` : "Rede (desconectado)"
-            onPressedChanged: systemMenu.noteToggleButtonPress(pressed)
             onClicked: systemMenu.toggle("network")
           }
           
@@ -235,7 +238,6 @@ Rectangle {
                 : Audio.volume < 0.5 ? "\uf027" : "\uf028"
             }
             tooltip: Audio.muted ? "Som (silenciado)" : `Som (${Math.round(Audio.volume * 100)}%)`
-            onPressedChanged: systemMenu.noteToggleButtonPress(pressed)
             onClicked: systemMenu.toggle("sound")
           }
 
@@ -250,7 +252,6 @@ Rectangle {
               text: "\uf011"
             }
             tooltip: "Energia e sessão"
-            onPressedChanged: systemMenu.noteToggleButtonPress(pressed)
             onClicked: systemMenu.toggle("power")
           }
         }

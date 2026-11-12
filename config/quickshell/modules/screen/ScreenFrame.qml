@@ -2,76 +2,64 @@ import qs.config
 import QtQuick
 import QtQuick.Shapes
 
-// Moldura opcional ao redor da tela (Config.frame_enabled), com cantos
-// internos arredondados. `topInset` é a altura ocupada pela barra, se houver.
-Item {
+// Moldura do modo moldura (Config.frame_enabled): uma única forma que cobre a
+// tela inteira menos um recorte de cantos arredondados, onde ficam as janelas.
+// A faixa superior tem a altura da barra no monitor principal, então a barra
+// é parte da moldura em vez de um retângulo à parte.
+Shape {
   id: root
 
-  property real topInset: 0
-  readonly property real thickness: Config.frame_thickness
-  readonly property real innerTop: topInset + thickness
+  // Altura da faixa superior.
+  property real topBand: Config.frame_thickness
+  readonly property real side: Config.frame_thickness
+  readonly property real radius: Math.max(0, Math.min(Config.frame_corner_radius,
+    (hole.right - hole.left) / 2, (hole.bottom - hole.top) / 2))
 
-  // Superior (abaixo da barra, quando ela existe)
-  Rectangle { y: root.topInset; width: root.width; height: root.thickness; color: Config.frame_color }
-  // Inferior
-  Rectangle { y: root.height - root.thickness; width: root.width; height: root.thickness; color: Config.frame_color }
-  // Esquerda
-  Rectangle {
-    y: root.innerTop
-    width: root.thickness
-    height: Math.max(0, root.height - root.innerTop - root.thickness)
-    color: Config.frame_color
-  }
-  // Direita
-  Rectangle {
-    x: root.width - root.thickness
-    y: root.innerTop
-    width: root.thickness
-    height: Math.max(0, root.height - root.innerTop - root.thickness)
-    color: Config.frame_color
+  // Recorte por onde as janelas aparecem.
+  readonly property QtObject hole: QtObject {
+    readonly property real left: root.side
+    readonly property real top: root.topBand
+    readonly property real right: root.width - root.side
+    readonly property real bottom: root.height - root.side
   }
 
-  FrameCorner { x: root.thickness; y: root.innerTop }
-  FrameCorner { x: root.width - root.thickness - width; y: root.innerTop; flipHorizontal: true }
-  FrameCorner { x: root.thickness; y: root.height - root.thickness - height; flipVertical: true }
-  FrameCorner {
-    x: root.width - root.thickness - width
-    y: root.height - root.thickness - height
-    flipHorizontal: true
-    flipVertical: true
-  }
+  preferredRendererType: Shape.CurveRenderer
 
-  component FrameCorner: Shape {
-    id: corner
+  ShapePath {
+    fillColor: Theme.crust
+    strokeColor: "transparent"
+    // O recorte é um segundo contorno dentro do primeiro.
+    fillRule: ShapePath.OddEvenFill
 
-    property bool flipHorizontal: false
-    property bool flipVertical: false
+    // Borda externa: a tela inteira.
+    startX: 0
+    startY: 0
+    PathLine { x: root.width; y: 0 }
+    PathLine { x: root.width; y: root.height }
+    PathLine { x: 0; y: root.height }
+    PathLine { x: 0; y: 0 }
 
-    width: Config.frame_corner_radius
-    height: Config.frame_corner_radius
-    antialiasing: true
-    transform: Scale {
-      xScale: corner.flipHorizontal ? -1 : 1
-      yScale: corner.flipVertical ? -1 : 1
-      origin.x: corner.width / 2
-      origin.y: corner.height / 2
+    // Recorte arredondado.
+    PathMove { x: root.hole.left + root.radius; y: root.hole.top }
+    PathLine { x: root.hole.right - root.radius; y: root.hole.top }
+    PathArc {
+      x: root.hole.right; y: root.hole.top + root.radius
+      radiusX: root.radius; radiusY: root.radius
     }
-
-    ShapePath {
-      fillColor: Config.frame_color
-      strokeColor: "transparent"
-      startX: 0
-      startY: corner.height
-      PathLine { x: 0; y: 0 }
-      PathLine { x: corner.width; y: 0 }
-      PathCubic {
-        x: 0
-        y: corner.height
-        control1X: corner.width * 0.4477
-        control1Y: 0
-        control2X: 0
-        control2Y: corner.height * 0.4477
-      }
+    PathLine { x: root.hole.right; y: root.hole.bottom - root.radius }
+    PathArc {
+      x: root.hole.right - root.radius; y: root.hole.bottom
+      radiusX: root.radius; radiusY: root.radius
+    }
+    PathLine { x: root.hole.left + root.radius; y: root.hole.bottom }
+    PathArc {
+      x: root.hole.left; y: root.hole.bottom - root.radius
+      radiusX: root.radius; radiusY: root.radius
+    }
+    PathLine { x: root.hole.left; y: root.hole.top + root.radius }
+    PathArc {
+      x: root.hole.left + root.radius; y: root.hole.top
+      radiusX: root.radius; radiusY: root.radius
     }
   }
 }

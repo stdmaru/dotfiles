@@ -143,7 +143,9 @@ Item {
               id: avatarImage
               anchors.fill: parent
               anchors.margins: 3
-              source: `file:///var/lib/AccountsService/icons/${Quickshell.env("USER")}`
+              source: Preferences.user.avatar
+                ? (Preferences.user.avatar.startsWith("file://") ? Preferences.user.avatar : `file://${Preferences.user.avatar}`)
+                : `file:///var/lib/AccountsService/icons/${Quickshell.env("USER")}`
               sourceSize: Qt.size(160, 160)
               fillMode: Image.PreserveAspectCrop
               visible: status === Image.Ready
@@ -170,7 +172,7 @@ Item {
 
           Text {
             width: parent.width
-            text: Quickshell.env("USER")
+            text: Preferences.user.displayName || Quickshell.env("USER")
             color: Theme.text
             font.family: Theme.font_display
             font.pixelSize: 18

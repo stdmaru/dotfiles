@@ -1,12 +1,19 @@
 //@ pragma IconTheme AdwaitaLegacy
+// O text-input-v3 do Qt perde o rastro da superfície focada sempre que uma
+// janela com campo de texto some, e passa a avisar em todo enable/disable.
+// Sem método de entrada (fcitx/ibus) ele não serve para nada; o módulo
+// "compose" mantém as teclas mortas (´ + a = á) via xkb.
+//@ pragma Env QT_IM_MODULE=compose
 
 pragma ComponentBehavior: Bound
 
+import qs.config
 import qs.controllers
 import qs.modules.dialogs
 import qs.modules.launcher
 import qs.modules.lock
 import qs.modules.screen
+import qs.modules.settings
 import Quickshell
 import Quickshell.Io
 import QtQuick
@@ -41,6 +48,12 @@ ShellRoot {
 
   Lock {}
 
+  // Janela de configurações; só existe enquanto está aberta.
+  LazyLoader {
+    active: Settings.open
+    SettingsWindow {}
+  }
+
   // quickshell ipc call <target> <função>
   IpcHandler {
     target: "launcher"
@@ -55,7 +68,14 @@ ShellRoot {
         Notifications.trayOpen = !Notifications.trayOpen
     }
     function clear(): void { Notifications.clearAll() }
-    function toggleDnd(): void { Notifications.doNotDisturb = !Notifications.doNotDisturb }
+    function toggleDnd(): void { Preferences.notifications.doNotDisturb = !Preferences.notifications.doNotDisturb }
+  }
+
+  IpcHandler {
+    target: "settings"
+    function toggle(): void { Settings.toggle() }
+    function open(category: string): void { Settings.show(category) }
+    function close(): void { Settings.close() }
   }
 
   IpcHandler {

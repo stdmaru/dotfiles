@@ -21,22 +21,20 @@ Singleton {
 
     readonly property string userdataDir: Quickshell.shellDir + "/userdata"
     readonly property string cacheDir: userdataDir + "/.cache"
-    readonly property string preferencesPath: userdataDir + "/preferences.json"
     readonly property string historyPath: cacheDir + "/notifications.json"
     readonly property int historyLimit: 200
 
-    property bool doNotDisturb: false
+    // Preferências (userdata/preferences.json, via Preferences).
+    readonly property bool doNotDisturb: Preferences.notifications.doNotDisturb
     property bool popupSuppressed: false
-    property bool lockScreenFullPrivacy: Config.notifications_lockscreen_full_privacy
-    property bool blurOnLock: Config.blur_on_lock
-    property bool emptyWorkspaceOnLock: Config.empty_workspace_on_lock
+    readonly property bool lockScreenFullPrivacy: Preferences.lock.notificationPrivacy
+    readonly property bool blurOnLock: Preferences.lock.blur
+    readonly property bool emptyWorkspaceOnLock: Preferences.lock.emptyWorkspace
     property bool trayOpen: false
     property bool persistenceStarted: false
     property bool persistenceAvailable: false
-    property bool preferencesLoaded: false
     property bool historyLoaded: false
     property bool persistenceReady: false
-    property var preferencesData: ({})
     property var restoredNotifications: []
     property var pendingImageEncodes: []
     property var activeImageEncode: null
@@ -49,32 +47,12 @@ Singleton {
         // DND hides active popups without removing their entries from history.
         if (doNotDisturb)
             popups.clear()
-        if (persistenceReady)
-            preferencesSaveTimer.restart()
     }
 
     onPopupSuppressedChanged: {
         // Session lock suppresses transient popups but leaves tray history intact.
         if (popupSuppressed)
             popups.clear()
-    }
-
-    onLockScreenFullPrivacyChanged: {
-        if (persistenceReady)
-            preferencesSaveTimer.restart()
-    }
-
-    onBlurOnLockChanged: {
-        if (persistenceReady)
-            preferencesSaveTimer.restart()
-    }
-
-    onEmptyWorkspaceOnLockChanged: {
-        // Keeping application workspaces visible while locked requires blur.
-        if (!emptyWorkspaceOnLock && !blurOnLock)
-            blurOnLock = true
-        if (persistenceReady)
-            preferencesSaveTimer.restart()
     }
 
     component NotificationEntry: QtObject {
@@ -207,27 +185,14 @@ Singleton {
         onExited: (exitCode, exitStatus) => {
             if (exitCode !== 0) {
                 console.warn("Could not create notification userdata directory")
-                root.preferencesLoaded = true
                 root.historyLoaded = true
                 root.finishPersistenceLoad()
                 return
             }
 
             root.persistenceAvailable = true
-            preferencesFile.path = root.preferencesPath
             historyFile.path = root.historyPath
         }
-    }
-
-    FileView {
-        id: preferencesFile
-        path: ""
-        printErrors: false
-        atomicWrites: true
-
-        onLoaded: root.loadPreferences(preferencesFile.text())
-        onLoadFailed: root.loadPreferences("")
-        onSaveFailed: error => console.warn("Could not save shell preferences:", error)
     }
 
     FileView {
@@ -240,13 +205,6 @@ Singleton {
         onLoadFailed: root.loadHistory("")
         onSaveFailed: error => root.onHistorySaveFailed(error)
         onSaved: root.onHistorySaved()
-    }
-
-    Timer {
-        id: preferencesSaveTimer
-        interval: 250
-        repeat: false
-        onTriggered: root.savePreferences()
     }
 
     Timer {
@@ -281,34 +239,6 @@ Singleton {
                 return i
         }
         return -1
-    }
-
-    function loadPreferences(contents): void {
-        let data = {}
-        if (contents.trim()) {
-            try {
-                data = JSON.parse(contents)
-            } catch (error) {
-                console.warn("Invalid preferences JSON; using defaults:", error)
-            }
-        }
-
-        if (!data || typeof data !== "object" || Array.isArray(data))
-            data = {}
-        root.preferencesData = data
-        const notificationPreferences = data.notifications ?? ({})
-        root.doNotDisturb = Boolean(notificationPreferences.doNotDisturb ?? data.doNotDisturb ?? false)
-        root.lockScreenFullPrivacy = Boolean(
-            notificationPreferences.notifications_lockscreen_full_privacy
-                ?? data.notifications_lockscreen_full_privacy
-                ?? Config.notifications_lockscreen_full_privacy
-        )
-        root.emptyWorkspaceOnLock = Boolean(data.empty_workspace_on_lock ?? Config.empty_workspace_on_lock)
-        root.blurOnLock = Boolean(data.blur_on_lock ?? Config.blur_on_lock)
-        if (!root.emptyWorkspaceOnLock)
-            root.blurOnLock = true
-        root.preferencesLoaded = true
-        root.finishPersistenceLoad()
     }
 
     function loadHistory(contents): void {
@@ -372,7 +302,7 @@ Singleton {
     }
 
     function finishPersistenceLoad(): void {
-        if (root.persistenceReady || !root.preferencesLoaded || !root.historyLoaded)
+        if (root.persistenceReady || !root.historyLoaded)
             return
 
         const notifications = []
@@ -399,7 +329,6 @@ Singleton {
         root.restoredNotifications = []
         root.persistenceReady = true
         historySaveTimer.restart()
-        preferencesSaveTimer.restart()
     }
 
     function notificationSnapshot(notification): var {
@@ -427,26 +356,6 @@ Singleton {
                 "chat-id": String(hints["chat-id"] ?? "")
             }
         }
-    }
-
-    function savePreferences(): void {
-        if (!root.persistenceReady || !root.persistenceAvailable)
-            return
-
-        const data = Object.assign({}, root.preferencesData)
-        const storedNotifications = data.notifications
-        const notifications = storedNotifications && typeof storedNotifications === "object"
-                && !Array.isArray(storedNotifications)
-            ? Object.assign({}, storedNotifications)
-            : ({})
-        data.schemaVersion = 1
-        notifications.doNotDisturb = root.doNotDisturb
-        notifications.notifications_lockscreen_full_privacy = root.lockScreenFullPrivacy
-        data.notifications = notifications
-        data.blur_on_lock = root.blurOnLock
-        data.empty_workspace_on_lock = root.emptyWorkspaceOnLock
-        root.preferencesData = data
-        preferencesFile.setText(JSON.stringify(data, null, 2))
     }
 
     function saveHistory(): void {

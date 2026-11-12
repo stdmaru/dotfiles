@@ -8,9 +8,10 @@ import Quickshell
 import Quickshell.Wayland
 import QtQuick
 
-// Camada transparente em tela cheia de um monitor. Desenha a moldura e, no
-// monitor principal, a barra e tudo que brota dela (popups, painel, menus).
-// A máscara de entrada deixa passar cliques fora desses elementos.
+// Camada transparente em tela cheia de um monitor. Desenha a moldura (modo
+// moldura) e, no monitor principal, a barra e tudo que brota dela (popups,
+// painel, menus). A máscara de entrada deixa passar cliques fora desses
+// elementos.
 PanelWindow {
   id: win
 
@@ -18,6 +19,9 @@ PanelWindow {
   readonly property bool isPrimary: Screens.isPrimary(modelData)
   readonly property var layer: layerLoader.item
   readonly property real barHeight: layer ? layer.bar.y + layer.bar.height : 0
+  // Altura da faixa superior da moldura: a barra no principal, a espessura
+  // da moldura nos demais.
+  readonly property real frameTop: isPrimary ? Config.bar_bottom : Config.frame_thickness
 
   screen: modelData
   visible: isPrimary || Config.frame_enabled
@@ -38,30 +42,24 @@ PanelWindow {
     ItemRegion { target: win.layer?.trayMenu ?? null }
   }
 
-  // Reserva o espaço da barra para que as janelas não fiquem sob ela. É uma
-  // janela à parte porque esta camada ignora zonas exclusivas.
-  PanelWindow {
-    screen: win.modelData
-    visible: win.isPrimary
-    implicitWidth: 1
-    implicitHeight: 1
-    color: "transparent"
-    mask: Region {}
-    anchors {
-      top: true
-      left: true
-      right: true
-    }
-    exclusiveZone: win.barHeight
-    WlrLayershell.exclusionMode: ExclusionMode.Normal
-    WlrLayershell.namespace: "quickshell-exclusive-area"
+  // Espaço que as janelas do Hyprland não ocupam. Cada borda é uma janela à
+  // parte porque esta camada ignora zonas exclusivas. Flutuante, só a barra
+  // reserva o topo; no modo moldura, as quatro bordas reservam a moldura.
+  ReservedEdge {
+    targetScreen: win.modelData
+    edge: "top"
+    active: win.isPrimary || Config.frame_enabled
+    size: Config.frame_enabled ? win.frameTop : win.barHeight
   }
+  ReservedEdge { targetScreen: win.modelData; edge: "left"; active: Config.frame_enabled; size: Config.frame_thickness }
+  ReservedEdge { targetScreen: win.modelData; edge: "right"; active: Config.frame_enabled; size: Config.frame_thickness }
+  ReservedEdge { targetScreen: win.modelData; edge: "bottom"; active: Config.frame_enabled; size: Config.frame_thickness }
 
   Loader {
     anchors.fill: parent
     active: Config.frame_enabled
     sourceComponent: ScreenFrame {
-      topInset: win.layer?.bar.visible ? win.layer.bar.height : 0
+      topBand: win.frameTop
     }
   }
 

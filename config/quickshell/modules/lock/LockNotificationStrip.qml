@@ -390,7 +390,7 @@ Item {
 
         Text {
           anchors.centerIn: parent
-          text: "…"
+          text: `+${groups.count - root.shownAppCount}`
           color: Theme.text
           font.family: Theme.font_ui
           font.pixelSize: 24
@@ -407,7 +407,7 @@ Item {
         color: Theme.blue
         border.width: 2
         border.color: Theme.crust
-
+        visible: false
         Text {
           id: overflowCountText
           anchors.centerIn: parent

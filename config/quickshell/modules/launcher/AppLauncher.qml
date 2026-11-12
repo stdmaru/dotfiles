@@ -80,8 +80,13 @@ PanelWindow {
       readonly property real targetHeight: Math.min(620, content.height - y - 24)
 
       width: Math.min(460, content.width - 24)
+      // Preso à barra, fica no canto esquerdo com folga para a rampa da
+      // silhueta não encostar no canto da barra (ou do recorte da moldura).
       x: root.attached
-        ? Config.topbar_corner_radius + Config.notification_panel_emergence + 5
+        ? (Config.frame_enabled
+            ? Config.frame_thickness + Config.frame_corner_radius
+            : Config.topbar_corner_radius)
+          + Config.notification_panel_emergence + 5
         : (content.width - width) / 2
       y: root.attached ? Config.bar_bottom : Math.round(content.height * 0.14)
       height: root.attached ? targetHeight * root.openProgress : targetHeight

@@ -1,7 +1,7 @@
 pragma ComponentBehavior: Bound
 
 import Quickshell
-import Quickshell.Hyprland
+import Quickshell.Wayland
 import Quickshell.Io
 import QtQuick
 import qs.config
@@ -10,40 +10,62 @@ import qs.controllers
 // Menu suspenso do canto direito da barra, com as páginas de rede, som e
 // energia. Este arquivo cuida apenas da janela: abrir/fechar, foco e a
 // transição entre páginas; o conteúdo fica em *Page.qml.
-PopupWindow {
+//
+// A janela é uma camada em tela cheia: enquanto o menu está aberto, qualquer
+// clique fora do painel cai nela e fecha o menu. A máscara de entrada tem
+// furos sobre os botões que alternam as páginas, então esses cliques chegam à
+// barra e o toggle() decide. O teclado só é pedido quando o campo de senha do
+// Wi-Fi recebe foco: uma superfície focada sem campo de texto faz o
+// text-input-v3 do Qt emitir avisos a cada troca de foco.
+PanelWindow {
     id: root
 
     required property PanelWindow parentWindow
     // Distância do topo da janela até a borda inferior da barra.
     required property real barBottom
+    // Botões da barra que abrem/alternam o menu; cliques neles atravessam a
+    // camada.
+    property list<Item> toggleButtons
 
     readonly property int panelWidth: 360
+    readonly property int maxPanelHeight: 538
     // "network", "sound", "power" ou "" (fechado).
     property string menuType: ""
     property string previousMenuType: ""
     property bool isOpen: false
-    property bool focusGrabEnabled: true
-    property bool toggleButtonPressed: false
-    property bool toggleClickInProgress: false
+    // Um campo de texto do painel pediu o teclado.
+    property bool keyboardWanted: false
     property int slideDirection: -1
     property real panelProgress: 0
     property real pageProgress: 1
     property real panelContentHeight: 0
     property string soundTab: "outputs"
 
-    implicitWidth: panelWidth
-    // A superfície Wayland do popup tem tamanho fixo: redimensionar a janela a
-    // cada quadro de animação gera ciclos de configure/commit. Só o painel
-    // desenhado dentro dela cresce e encolhe.
-    implicitHeight: 540
+    screen: parentWindow.screen
     visible: false
     color: "transparent"
-    grabFocus: false
-    mask: Region { item: panel }
+    anchors {
+        top: true
+        bottom: true
+        left: true
+        right: true
+    }
+    exclusionMode: ExclusionMode.Ignore
+    WlrLayershell.layer: WlrLayer.Overlay
+    WlrLayershell.namespace: "quickshell-systemmenu"
+    WlrLayershell.keyboardFocus: keyboardWanted && isOpen
+        ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
-    anchor.window: parentWindow
-    anchor.rect.x: parentWindow.width - width - 8
-    anchor.rect.y: barBottom + 3
+    // Fechando, a máscara fica vazia para os cliques atravessarem durante a
+    // animação de saída.
+    mask: Region {
+        width: root.isOpen ? root.width : 0
+        height: root.isOpen ? root.height : 0
+
+        Region { item: root.toggleButtons[0] ?? null; intersection: Intersection.Subtract }
+        Region { item: root.toggleButtons[1] ?? null; intersection: Intersection.Subtract }
+        Region { item: root.toggleButtons[2] ?? null; intersection: Intersection.Subtract }
+    }
 
     Behavior on panelContentHeight {
         enabled: root.isOpen
@@ -66,58 +88,33 @@ PopupWindow {
         function close(): void { root.closeMenu() }
     }
 
-    HyprlandFocusGrab {
-        active: root.isOpen && root.focusGrabEnabled
+    // Nos demais monitores, um clique em qualquer lugar também fecha o menu.
+    Variants {
+        model: Quickshell.screens.filter(s => s !== root.screen)
 
-        windows: [root]
+        PanelWindow {
+            required property ShellScreen modelData
 
-        onCleared: {
-            root.focusGrabEnabled = false
-
-            // O clique que desfez o grab foi em um dos botões da barra que
-            // alternam o menu: rearme e deixe o toggle() decidir.
-            if (root.toggleButtonPressed || root.toggleClickInProgress) {
-                root.rearmFocusGrab()
-                return
+            screen: modelData
+            visible: root.isOpen
+            color: "transparent"
+            anchors {
+                top: true
+                bottom: true
+                left: true
+                right: true
             }
+            exclusionMode: ExclusionMode.Ignore
+            WlrLayershell.layer: WlrLayer.Overlay
+            WlrLayershell.namespace: "quickshell-systemmenu-shield"
+            WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
 
-            dismissTimer.restart()
+            MouseArea {
+                anchors.fill: parent
+                acceptedButtons: Qt.AllButtons
+                onPressed: root.closeMenu()
+            }
         }
-    }
-
-    Timer {
-        id: dismissTimer
-        interval: 180
-        onTriggered: root.closeMenu()
-    }
-
-    Timer {
-        id: pressRecoveryTimer
-        interval: 1000
-        onTriggered: root.toggleButtonPressed = false
-    }
-
-    // Chamado pelos botões da barra em onPressedChanged, antes do clique.
-    function noteToggleButtonPress(pressed: bool): void {
-        root.toggleButtonPressed = pressed
-        if (pressed) {
-            dismissTimer.stop()
-            pressRecoveryTimer.restart()
-            if (!root.focusGrabEnabled)
-                rearmFocusGrab()
-        } else {
-            pressRecoveryTimer.stop()
-        }
-    }
-
-    function rearmFocusGrab(): void {
-        if (!root.isOpen)
-            return
-        root.focusGrabEnabled = false
-        Qt.callLater(() => {
-            if (root.isOpen)
-                root.focusGrabEnabled = true
-        })
     }
 
     function pageIndex(type: string): int {
@@ -133,22 +130,16 @@ PopupWindow {
 
     function updatePanelContentHeight(): void {
         if (currentPage.item)
-            panelContentHeight = Math.min(currentPage.item.implicitHeight + 36, height - 4)
+            panelContentHeight = Math.min(currentPage.item.implicitHeight + 36, maxPanelHeight)
     }
 
     function toggle(type: string): void {
-        toggleClickInProgress = true
-        Qt.callLater(() => root.toggleClickInProgress = false)
-        dismissTimer.stop()
-        pressRecoveryTimer.stop()
-        toggleButtonPressed = false
         if (isOpen && menuType === type) {
             closeMenu()
             return
         }
 
         if (!isOpen) {
-            focusGrabEnabled = false
             menuType = type
             previousMenuType = ""
             isOpen = true
@@ -158,12 +149,7 @@ PopupWindow {
             panelAnimation.to = 1
             panelAnimation.restart()
 
-            Qt.callLater(() => {
-                if (root.isOpen)
-                    root.focusGrabEnabled = true
-
-                root.updatePanelContentHeight()
-            })
+            Qt.callLater(root.updatePanelContentHeight)
         } else {
             if (pageAnimation.running) {
                 pageAnimation.stop()
@@ -181,9 +167,8 @@ PopupWindow {
     function closeMenu(): void {
         if (!isOpen)
             return
-        dismissTimer.stop()
-        pressRecoveryTimer.stop()
         isOpen = false
+        keyboardWanted = false
         panelAnimation.to = 0
         panelAnimation.restart()
     }
@@ -256,18 +241,37 @@ PopupWindow {
         onFinished: root.previousMenuType = ""
     }
 
+    Item {
+        anchors.fill: parent
+
+        // Clique fora do painel fecha.
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.AllButtons
+            onPressed: root.closeMenu()
+        }
+    }
+
     Rectangle {
         id: panel
-        x: 1
-        y: 1 + (1 - root.panelProgress) * -10
-        width: root.width - 2
-        height: Math.min(root.panelContentHeight * root.panelProgress, root.height - 2)
+        // Alinhado à direita da barra ou, no modo moldura, do recorte.
+        x: root.width - root.panelWidth - (Config.frame_enabled ? Config.frame_thickness + 3 : 7)
+        y: root.barBottom + 4 + (1 - root.panelProgress) * -10
+        width: root.panelWidth - 2
+        height: Math.min(root.panelContentHeight * root.panelProgress, root.maxPanelHeight)
         radius: Theme.radius_l
         color: Theme.crust
         border.width: 1
         border.color: Theme.outline
         opacity: root.panelProgress
         clip: true
+        Keys.onEscapePressed: root.closeMenu()
+
+        // Cliques no próprio painel não chegam à área que fecha o menu.
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.AllButtons
+        }
 
         Item {
             id: pageViewport
@@ -284,7 +288,7 @@ PopupWindow {
                 height: item?.implicitHeight ?? 0
                 z: 0
                 opacity: 1 - root.pageProgress
-                transform: Translate { x: -root.slideDirection * root.width * root.pageProgress }
+                transform: Translate { x: -root.slideDirection * root.panelWidth * root.pageProgress }
             }
 
             Loader {
@@ -297,7 +301,7 @@ PopupWindow {
                 onLoaded: root.updatePanelContentHeight()
                 transform: Translate {
                     x: root.previousMenuType !== ""
-                        ? root.slideDirection * root.width * (1 - root.pageProgress)
+                        ? root.slideDirection * root.panelWidth * (1 - root.pageProgress)
                         : 0
                     y: root.previousMenuType === "" ? (1 - root.panelProgress) * -10 : 0
                 }
@@ -306,6 +310,44 @@ PopupWindow {
             Connections {
                 target: currentPage.item
                 function onImplicitHeightChanged(): void { root.updatePanelContentHeight() }
+            }
+        }
+    }
+
+    // Abre a janela de configurações do shell; fica no canto do cabeçalho de
+    // todas as páginas.
+    Rectangle {
+        id: settingsButton
+
+        x: panel.x + panel.width - width - 12
+        y: panel.y + 12
+        width: 30
+        height: 30
+        radius: Theme.radius_s
+        opacity: root.panelProgress
+        visible: panel.height > height + 24
+        color: settingsMouse.pressed ? Theme.surface1
+            : settingsMouse.containsMouse ? Theme.surface0 : "transparent"
+
+        Behavior on color { ColorAnimation { duration: 120 } }
+
+        Text {
+            anchors.centerIn: parent
+            text: "\uf013"
+            color: settingsMouse.containsMouse ? Theme.text : Theme.overlay1
+            font.family: Theme.font_awesome
+            font.weight: Font.Black
+            font.pixelSize: 14
+        }
+
+        MouseArea {
+            id: settingsMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: {
+                root.closeMenu()
+                Settings.show("")
             }
         }
     }
@@ -323,8 +365,8 @@ PopupWindow {
         id: networkPage
 
         NetworkPage {
-            // Digitar a senha não pode disparar o fechamento por perda de foco.
-            onInputFocused: dismissTimer.stop()
+            // Só agora a camada pede o teclado, já com o campo focado.
+            onInputFocused: root.keyboardWanted = true
         }
     }
 
