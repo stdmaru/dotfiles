@@ -1,16 +1,28 @@
+pragma ComponentBehavior: Bound
+
 import qs.config
 import qs.controllers
+import qs.modules.notifications
 import Quickshell
 import Quickshell.Hyprland
 import Quickshell.Wayland
 import QtQuick
 import QtQuick.Controls
+
+// Lançador de aplicativos. No monitor principal ele brota da barra, como o
+// painel de notificações; nos demais aparece como um cartão flutuante.
 PanelWindow {
   id: root
+
   required property ShellScreen targetScreen
+  readonly property bool isTargetScreen: Launcher.screen === targetScreen
+  // Preso à barra (monitor principal) ou flutuante (demais monitores).
+  readonly property bool attached: Screens.isPrimary(targetScreen)
   property int selectedIndex: 0
   property real openProgress: Launcher.open && isTargetScreen ? 1 : 0
-  property bool isTargetScreen: Launcher.screen === targetScreen
+  readonly property string query: searchField.text.trim()
+  readonly property bool commandMode: query.startsWith(">")
+
   screen: targetScreen
   visible: (Launcher.open || openProgress > 0) && isTargetScreen
   color: "transparent"
@@ -18,156 +30,158 @@ PanelWindow {
   aboveWindows: true
   exclusionMode: ExclusionMode.Ignore
   WlrLayershell.layer: WlrLayer.Overlay
-  Behavior on openProgress {
-    NumberAnimation {
-      duration: 120
-      easing.type: Easing.OutCubic
-    }
-  }
+  WlrLayershell.namespace: "quickshell-launcher"
   anchors {
     top: true
     bottom: true
     left: true
     right: true
   }
+
+  Behavior on openProgress {
+    NumberAnimation {
+      duration: Config.motion_fast_spatial_ms
+      easing.type: Easing.OutCubic
+    }
+  }
+
   Item {
     id: content
     anchors.fill: parent
     focus: true
     Keys.onEscapePressed: Launcher.close()
+
+    // Clique fora fecha. Só o cartão flutuante escurece o fundo; preso à
+    // barra, o lançador se comporta como os demais painéis.
     Rectangle {
       anchors.fill: parent
-      color: "#72090a12"
-      opacity: 1
+      color: root.attached ? "transparent" : "#72090a12"
+      opacity: root.openProgress
       MouseArea {
         anchors.fill: parent
+        acceptedButtons: Qt.AllButtons
         onClicked: Launcher.close()
       }
     }
+
     Rectangle {
-      id: launcherCard
-      width: Math.min(455, parent.width - 10)
-      x: 5 - (width + 20) * (1 - root.openProgress)
-      anchors.top: parent.top
-      //anchors.topMargin: (Config.frame_enabled ? (Config.topbar_height - 10 + Config.frame_thickness) : Config.topbar_height) + Config.app_launcher_top_gap
-      anchors.margins: 5
-      anchors.bottom: parent.bottom
-      //anchors.bottomMargin: 5
-      opacity: 1
-      radius: Config.topbar_corner_radius
-      color: Theme.mantle
-      border.width: 1
+      id: panel
+
+      readonly property real targetHeight: Math.min(620, content.height - y - 24)
+
+      width: Math.min(460, content.width - 24)
+      x: root.attached
+        ? Config.topbar_corner_radius + Config.notification_panel_emergence + 5
+        : (content.width - width) / 2
+      y: root.attached ? Config.bar_bottom : Math.round(content.height * 0.14)
+      height: root.attached ? targetHeight * root.openProgress : targetHeight
+      opacity: root.attached ? 1 : root.openProgress
+      scale: root.attached ? 1 : 0.97 + 0.03 * root.openProgress
+      color: Theme.crust
+      topLeftRadius: root.attached ? 0 : Theme.radius_l
+      topRightRadius: root.attached ? 0 : Theme.radius_l
+      bottomLeftRadius: Theme.radius_l
+      bottomRightRadius: Theme.radius_l
+      border.width: root.attached ? 0 : 1
       border.color: Theme.outline
-      Column {
+      clip: true
+
+      // Cliques no painel não chegam ao fechamento por clique externo.
+      MouseArea {
         anchors.fill: parent
-        anchors.margins: 16
-        spacing: 12
-        Row {
-          width: parent.width
-          spacing: 10
-          Rectangle {
-            width: 36
-            height: 36
-            radius: Theme.radius_m
-            color: Theme.surface0
-            Grid {
-              anchors.centerIn: parent
-              width: 17
-              height: 17
-              columns: 2
-              spacing: 3
-              Repeater {
-                model: 4
-                Rectangle {
-                  required property int index
-                  width: 7
-                  height: 7
-                  radius: 2
-                  color: Theme.blue
-                }
-              }
-            }
-          }
-          Column {
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: 2
-            Text {
-              text: "Aplicativos"
-              color: Theme.text
-              font.family: Theme.font_display
-              font.pixelSize: 15
-            }
-            Text {
-              text: "> comando  ·  digite para pesquisar"
-              color: Theme.subtext0
-              font.family: Theme.font_ui
-              font.pixelSize: 10
-            }
-          }
-        }
+        acceptedButtons: Qt.AllButtons
+      }
+
+      // O conteúdo mantém o tamanho final enquanto o painel cresce.
+      Column {
+        x: 14
+        y: 14
+        width: panel.width - 28
+        height: panel.targetHeight - 28
+        spacing: 10
+        opacity: root.openProgress
+
         TextField {
           id: searchField
           width: parent.width
-          height: 43
-          placeholderText: "Pesquisar aplicativos ou digitar > comando"
+          height: 44
+          placeholderText: "Pesquisar aplicativos…"
           selectByMouse: true
           color: Theme.text
           placeholderTextColor: Theme.overlay0
           font.family: Theme.font_ui
-          font.pixelSize: 13
-          leftPadding: 12
+          font.pixelSize: 14
+          leftPadding: 40
           rightPadding: 12
           background: Rectangle {
             radius: Theme.radius_m
-            color: Theme.crust
-            border.width: searchField.activeFocus ? 1 : 0
-            border.color: Theme.blue
+            color: Theme.base
+            border.width: 1
+            border.color: searchField.activeFocus ? Theme.blue : Theme.outline
+
+            Text {
+              x: 14
+              anchors.verticalCenter: parent.verticalCenter
+              text: root.commandMode ? "\uf120" : "\uf002"
+              color: root.commandMode ? Theme.green : Theme.overlay1
+              font.family: Theme.font_awesome
+              font.weight: Font.Black
+              font.pixelSize: 14
+            }
           }
           onAccepted: root.submitSearch()
           Keys.onPressed: event => {
-            if (event.key === Qt.Key_Down) {
+            if (event.key === Qt.Key_Down || event.key === Qt.Key_Tab) {
               root.moveSelection(1)
               event.accepted = true
-            } else if (event.key === Qt.Key_Up) {
+            } else if (event.key === Qt.Key_Up || event.key === Qt.Key_Backtab) {
               root.moveSelection(-1)
               event.accepted = true
             }
           }
         }
+
         Item {
           width: parent.width
-          height: parent.height - y
-          Text {
+          height: parent.height - searchField.height - footer.height - parent.spacing * 2
+
+          Column {
             anchors.centerIn: parent
-            visible: searchField.text.trim().length > 0
-              && !searchField.text.trim().startsWith(">")
-              && root.visibleApps.length === 0
-            text: "Nenhum aplicativo encontrado"
-            color: Theme.subtext0
-            font.family: Theme.font_ui
-            font.pixelSize: 13
+            spacing: 10
+            visible: root.commandMode || (root.query.length > 0 && root.visibleApps.length === 0)
+
+            Text {
+              anchors.horizontalCenter: parent.horizontalCenter
+              text: root.commandMode ? "\uf120" : "\uf002"
+              color: Theme.surface2
+              font.family: Theme.font_awesome
+              font.weight: Font.Black
+              font.pixelSize: 26
+            }
+
+            Text {
+              anchors.horizontalCenter: parent.horizontalCenter
+              text: !root.commandMode ? "Nenhum aplicativo encontrado"
+                : root.query.length > 1 ? "Enter executa o comando no terminal"
+                : "Digite um comando para executar no terminal"
+              color: Theme.subtext0
+              font.family: Theme.font_ui
+              font.pixelSize: 13
+            }
           }
-          Text {
-            anchors.centerIn: parent
-            visible: searchField.text.trim().startsWith(">")
-            text: searchField.text.trim().length > 1
-              ? "Pressione Enter para executar no terminal"
-              : "Digite um comando para executar no terminal"
-            color: Theme.subtext0
-            font.family: Theme.font_ui
-            font.pixelSize: 13
-          }
+
           ListView {
             id: appList
             anchors.fill: parent
             clip: true
-            spacing: 5
+            spacing: 2
             model: root.visibleApps
             currentIndex: root.selectedIndex
             boundsBehavior: Flickable.StopAtBounds
             ScrollBar.vertical: ScrollBar {
               policy: ScrollBar.AsNeeded
             }
+
             delegate: Item {
               id: appRow
               required property int index
@@ -178,84 +192,137 @@ PanelWindow {
               required property bool running
               required property int workspace
               width: appList.width
-              height: 46
+              height: 48
+
               Rectangle {
-                id: rowSurface
                 anchors.fill: parent
-                radius: Theme.radius_m
-                color: (root.selectedIndex >= 0 && root.selectedIndex === appRow.index)
-                  || mouse.containsMouse ? Theme.surface0 : "transparent"
-                Row {
-                  anchors.fill: parent
-                  anchors.leftMargin: 10
-                  anchors.rightMargin: 10
-                  spacing: 10
-                  Image {
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 34
-                    height: 34
-                    source: appRow.icon
-                    sourceSize: Qt.size(68, 68)
-                    fillMode: Image.PreserveAspectFit
-                    smooth: true
-                    mipmap: true
-                    asynchronous: true
+                radius: Theme.radius_s
+                color: root.selectedIndex === appRow.index ? Theme.surface0
+                  : mouse.containsMouse ? Theme.baseHover : "transparent"
+              }
+
+              Row {
+                anchors.fill: parent
+                anchors.leftMargin: 10
+                anchors.rightMargin: 10
+                spacing: 12
+
+                Image {
+                  anchors.verticalCenter: parent.verticalCenter
+                  width: 32
+                  height: 32
+                  source: appRow.icon
+                  sourceSize: Qt.size(64, 64)
+                  fillMode: Image.PreserveAspectFit
+                  smooth: true
+                  mipmap: true
+                  asynchronous: true
+                }
+
+                Column {
+                  anchors.verticalCenter: parent.verticalCenter
+                  width: parent.width - 32 - parent.spacing
+                    - (badge.visible ? badge.width + parent.spacing : 0)
+                  spacing: 1
+
+                  Text {
+                    width: parent.width
+                    text: appRow.name
+                    color: Theme.text
+                    font.family: Theme.font_ui
+                    font.pixelSize: 13
+                    font.weight: Font.DemiBold
+                    elide: Text.ElideRight
                   }
-                  Column {
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: parent.width - 135
-                    spacing: 2
+
+                  Text {
+                    width: parent.width
+                    text: appRow.subtitle
+                    color: Theme.overlay1
+                    font.family: Theme.font_ui
+                    font.pixelSize: 11
+                    elide: Text.ElideRight
+                    visible: text.length > 0
+                  }
+                }
+
+                // Aplicativo em execução: mostra em qual workspace está.
+                Rectangle {
+                  id: badge
+                  visible: appRow.running
+                  anchors.verticalCenter: parent.verticalCenter
+                  width: badgeRow.implicitWidth + 14
+                  height: 22
+                  radius: height / 2
+                  color: Theme.surface1
+
+                  Row {
+                    id: badgeRow
+                    anchors.centerIn: parent
+                    spacing: 5
+
+                    Rectangle {
+                      anchors.verticalCenter: parent.verticalCenter
+                      width: 6
+                      height: 6
+                      radius: 3
+                      color: Theme.green
+                    }
+
                     Text {
-                      width: parent.width
-                      text: appRow.name
+                      text: appRow.workspace > 0
+                        ? (Config.workspaces_labels[appRow.workspace] ?? String(appRow.workspace))
+                        : "ativo"
                       color: Theme.text
                       font.family: Theme.font_ui
-                      font.pixelSize: 13
-                      elide: Text.ElideRight
-                    }
-                    Text {
-                      width: parent.width
-                      text: appRow.subtitle
-                      color: Theme.subtext0
-                      font.family: Theme.font_ui
-                      font.pixelSize: 10
-                      elide: Text.ElideRight
-                      visible: text.length > 0
-                    }
-                  }
-                  Rectangle {
-                    visible: appRow.running
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: Math.max(28, workspaceLabel.implicitWidth + 13)
-                    height: 21
-                    radius: Theme.radius_s
-                    color: Theme.basePressed
-                    Text {
-                      id: workspaceLabel
-                      anchors.centerIn: parent
-                      text: appRow.workspace > 0
-                        ? `WORKSPACE ${appRow.workspace}` : "Ativo"
-                      color: Theme.lavender
-                      font.family: Theme.font_ui
-                      font.pixelSize: 9
+                      font.pixelSize: 11
                       font.weight: Font.DemiBold
                     }
                   }
                 }
-                MouseArea {
-                  id: mouse
-                  anchors.fill: parent
-                  hoverEnabled: true
-                  onEntered: root.selectItem(appRow.index)
-                  onClicked: root.activateKey(appRow.key)
-                }
+              }
+
+              MouseArea {
+                id: mouse
+                anchors.fill: parent
+                hoverEnabled: true
+                onClicked: root.activateKey(appRow.key)
               }
             }
           }
         }
+
+        Text {
+          id: footer
+          width: parent.width
+          height: 16
+          horizontalAlignment: Text.AlignHCenter
+          verticalAlignment: Text.AlignVCenter
+          text: "↑↓ navegar  ·  Enter abrir  ·  > executar comando  ·  Esc fechar"
+          color: Theme.overlay0
+          font.family: Theme.font_ui
+          font.pixelSize: 10
+        }
       }
     }
+
+    // Ombros que unem o painel à barra, como no painel de notificações.
+    DockShoulder {
+      visible: root.attached && height > 0
+      x: panel.x - width
+      y: panel.y
+      progress: panel.height / (Config.notification_panel_emergence + Theme.radius_l)
+    }
+
+    DockShoulder {
+      mirrored: true
+      visible: root.attached && height > 0
+      x: panel.x + panel.width
+      y: panel.y
+      progress: panel.height / (Config.notification_panel_emergence + Theme.radius_l)
+    }
   }
+
   Connections {
     target: Launcher
 

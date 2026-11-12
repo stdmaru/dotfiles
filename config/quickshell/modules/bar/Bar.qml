@@ -133,7 +133,7 @@ Rectangle {
 
               Label {
                 font.family: Theme.font_nerd
-                font.pixelSize: 18
+                font.pixelSize: 28
                 color: btn.active ? Theme.white : Theme.barText
                 text: (Weather.hasData) ? `${Weather.glyph}` : "\ue347"
               }

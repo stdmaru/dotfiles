@@ -22,6 +22,9 @@ Singleton {
     readonly property string gpu_type: "NVIDIA" // NVIDIA; GENERIC; NONE
     readonly property int topbar_height: 50
     readonly property int topbar_corner_radius: 12
+    // Distância do topo da tela até a borda inferior da barra.
+    readonly property int bar_bottom: frame_enabled
+        ? (topbar_height - 10 + frame_thickness) : (topbar_height - 5)
     readonly property bool frame_enabled: false
     readonly property int frame_thickness: 5
     readonly property int frame_corner_radius: 7
