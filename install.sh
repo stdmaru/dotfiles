@@ -245,6 +245,10 @@ install_configs() {
     link "zsh"        "$install_dir/config/zsh"             "$HOME/.local/share/zsh"
     link ".zshrc"     "$install_dir/config/.zshrc"          "$HOME/.zshrc"
 
+    # Chave e local do clima (fora do git), a partir do exemplo.
+    local secrets="$install_dir/config/hypr/secrets.lua"
+    [ -e "$secrets" ] || install -m 600 "$install_dir/config/hypr/secrets.lua.example" "$secrets"
+
     # Preferências do quickshell (fora do git); o shell cria o arquivo.
     mkdir -p "$install_dir/config/quickshell/userdata"
 
@@ -306,7 +310,7 @@ post_install() {
 
     printf "${GREEN}Instalação realizada com sucesso!${NC}\n"
     printf "${GREEN}Inicie a sessão com o comando: Hyprland${NC}\n"
-    printf "${GREEN}Clima: defina _SHELL_WEATHER_API_KEY e _SHELL_WEATHER_LOCATION (hl.env) em [~/.config/hypr/hyprland.lua].${NC}\n"
+    printf "${GREEN}Clima: preencha a chave e o local em [~/.config/hypr/secrets.lua].${NC}\n"
 }
 
 pre_install
