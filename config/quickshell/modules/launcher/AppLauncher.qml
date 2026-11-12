@@ -8,14 +8,13 @@ import QtQuick.Controls
 PanelWindow {
   id: root
   required property ShellScreen targetScreen
-  required property var launcherController
   property int selectedIndex: 0
-  property real openProgress: launcherController.launcherOpen && isTargetScreen ? 1 : 0
-  property bool isTargetScreen: launcherController.launcherScreen === targetScreen
+  property real openProgress: Launcher.open && isTargetScreen ? 1 : 0
+  property bool isTargetScreen: Launcher.screen === targetScreen
   screen: targetScreen
-  visible: (launcherController.launcherOpen || openProgress > 0) && isTargetScreen
+  visible: (Launcher.open || openProgress > 0) && isTargetScreen
   color: "transparent"
-  focusable: launcherController.launcherOpen && isTargetScreen
+  focusable: Launcher.open && isTargetScreen
   aboveWindows: true
   exclusionMode: ExclusionMode.Ignore
   WlrLayershell.layer: WlrLayer.Overlay
@@ -35,14 +34,14 @@ PanelWindow {
     id: content
     anchors.fill: parent
     focus: true
-    Keys.onEscapePressed: root.launcherController.closeLauncher()
+    Keys.onEscapePressed: Launcher.close()
     Rectangle {
       anchors.fill: parent
       color: "#72090a12"
       opacity: 1
       MouseArea {
         anchors.fill: parent
-        onClicked: root.launcherController.closeLauncher()
+        onClicked: Launcher.close()
       }
     }
     Rectangle {
@@ -84,7 +83,7 @@ PanelWindow {
                   width: 7
                   height: 7
                   radius: 2
-                  color: "#89b4fa"
+                  color: Theme.blue
                 }
               }
             }
@@ -95,7 +94,7 @@ PanelWindow {
             Text {
               text: "Aplicativos"
               color: "#e6e6f0"
-              font.family: Config.main_font
+              font.family: Theme.font_display
               font.pixelSize: 15
             }
             Text {
@@ -118,9 +117,9 @@ PanelWindow {
           rightPadding: 12
           background: Rectangle {
             radius: 13
-            color: "#11111b"
+            color: Theme.crust
             border.width: searchField.activeFocus ? 1 : 0
-            border.color: "#89b4fa"
+            border.color: Theme.blue
           }
           onAccepted: root.submitSearch()
           Keys.onPressed: event => {
@@ -149,8 +148,8 @@ PanelWindow {
             anchors.centerIn: parent
             visible: searchField.text.trim().startsWith(">")
             text: searchField.text.trim().length > 1
-              ? "Pressione Enter para executar no Alacritty"
-              : "Digite um comando para executar no Alacritty"
+              ? "Pressione Enter para executar no terminal"
+              : "Digite um comando para executar no terminal"
             color: "#9292a5"
             font.pixelSize: 13
           }
@@ -230,7 +229,7 @@ PanelWindow {
                       anchors.centerIn: parent
                       text: appRow.workspace > 0
                         ? `WORKSPACE ${appRow.workspace}` : "Ativo"
-                      color: "#b4befe"
+                      color: Theme.lavender
                       font.pixelSize: 9
                       font.weight: Font.DemiBold
                     }
@@ -251,10 +250,10 @@ PanelWindow {
     }
   }
   Connections {
-    target: root.launcherController
+    target: Launcher
 
-    function onLauncherOpenChanged(): void {
-      if (root.launcherController.launcherOpen && root.isTargetScreen) {
+    function onOpenChanged(): void {
+      if (Launcher.open && root.isTargetScreen) {
         searchField.text = ""
         root.selectedIndex = 0
 
@@ -325,9 +324,6 @@ PanelWindow {
       selectedIndex = visibleApps.length > 0 ? 0 : -1
       Qt.callLater(() => appList.positionViewAtBeginning())
   }
-  Component.onCompleted: {
-      selectedIndex = visibleApps.length > 0 ? 0 : -1
-  }
   function selectItem(index: int): void {
     if (index < 0 || index >= visibleApps.length)
       return
@@ -345,7 +341,7 @@ PanelWindow {
     appList.positionViewAtIndex(next, ListView.Contain)
   }
   function activateApp(app: var): void {
-    launcherController.closeLauncher()
+    Launcher.close()
     if (app.running && app.toplevel) {
       if (app.toplevel.workspace) app.toplevel.workspace.activate()
       Qt.callLater(() => app.toplevel.wayland?.activate())
@@ -363,9 +359,9 @@ PanelWindow {
     if (query.startsWith(">")) {
       const command = query.slice(1).trim()
       if (!command) return
-      launcherController.closeLauncher()
+      Launcher.close()
       Quickshell.execDetached([
-          "alacritty",
+          Config.terminal,
           "-e",
           "sh",
           "-lc",
@@ -378,13 +374,6 @@ PanelWindow {
         ? visibleApps[selectedIndex]
         : visibleApps[0]
       activateApp(selectedApp)
-    }
-  }
-  onVisibleChanged: {
-    if (visible) {
-      searchField.text = ""
-      selectedIndex = -1
-      Qt.callLater(() => searchField.forceActiveFocus())
     }
   }
 }

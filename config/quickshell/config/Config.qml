@@ -3,9 +3,22 @@ pragma Singleton
 import Quickshell
 
 Singleton {
+    // Monitores
+    // A barra, as notificações e o cartão de login ficam no monitor principal.
+    // Se ele não estiver conectado, o primeiro monitor disponível assume.
+    readonly property string primary_screen: "DP-2"
+    // Workspaces vazias reservadas para o bloqueio de sessão, por monitor.
+    // Precisam existir como regras persistentes no hyprland.lua.
+    readonly property var lock_workspaces: ({ "DP-2": 99, "DP-1": 98 })
+    // Workspace para onde cada monitor volta se, ao bloquear, ele já estiver
+    // parado em uma workspace reservada (ex.: desbloqueio anterior incompleto).
+    readonly property var home_workspaces: ({ "DP-2": 1, "DP-1": 10 })
+
     // General
+    readonly property string terminal: "alacritty"
+    // Foca automaticamente janelas que pedem atenção (evento "urgent").
+    readonly property bool focus_urgent_windows: true
     readonly property string temperature_metric: "°C"
-    readonly property string main_font: "Cantarell Extra Bold"
     readonly property string gpu_type: "NVIDIA" // NVIDIA; GENERIC; NONE
     readonly property int topbar_height: 50
     readonly property int topbar_corner_radius: 7

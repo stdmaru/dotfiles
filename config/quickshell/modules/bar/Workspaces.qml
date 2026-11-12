@@ -38,7 +38,7 @@ Row {
     }
 
     function isWorkspaceInRange(ws) {
-        return ws.id >= 1 && ws.id <= maxWorkspaces && ws.id !== 10
+        return ws.id >= 1 && ws.id <= maxWorkspaces
     }
 
     function firstFreeWorkspace() {
@@ -67,7 +67,7 @@ Row {
                     id,
                     real: workspaceById(id) ?? null
                 }
-            }).filter(ws => ws.id !== 10)
+            })
         }
 
         // MODO: dinâmico (não vazias + atual)
@@ -101,8 +101,10 @@ Row {
             rightPadding: 5
             fontSize: 14
 
-            text: root.labels[modelData.id] ?? modelData.id
-            active: Hyprland.focusedWorkspace && Hyprland.focusedWorkspace.id === modelData.id
+            text: root.labels[modelData.id] ?? String(modelData.id)
+            // Workspaces sem janelas ficam esmaecidas.
+            opacity: active || !root.isWorkspaceEmpty(modelData.real ?? { toplevels: { values: [] } }) ? 1 : 0.45
+            active: Hyprland.focusedWorkspace?.id === modelData.id
             onClicked: {
                 if (!Hyprland.focusedWorkspace
                     || Hyprland.focusedWorkspace.id !== modelData.id)

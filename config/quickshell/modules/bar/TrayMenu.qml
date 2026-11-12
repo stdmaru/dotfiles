@@ -90,10 +90,9 @@ Rectangle {
         width: Math.max(menuStack.currentItem ? menuStack.currentItem.implicitWidth : 0, minWidth)
         height: menuStack.currentItem ? menuStack.currentItem.implicitHeight : 0
 
-        onWidthChanged: {
-            if (!root.visible) return
-            menuContainer.x = root.openX - width / 2
-        }
+        // Centralizado no ponto de abertura, sem sair da tela.
+        x: Math.max(8, Math.min(root.width - width - 8, root.openX - width / 2))
+        y: root.openY
 
         Behavior on height {
             NumberAnimation {
@@ -143,7 +142,6 @@ Rectangle {
                 }
             }
 
-            StackView.onRemoved: destroy()
         }
 
         component MenuView: Column {
@@ -168,8 +166,8 @@ Rectangle {
 
                 Text {
                     anchors.centerIn: parent
-                    text: ""
-                    font.family: "Font Awesome 7 Free"
+                    text: "\uf060"
+                    font.family: Theme.font_awesome
                     font.pixelSize: 14
                     color: "white"
                 }
@@ -216,9 +214,8 @@ Rectangle {
                         Text {
                             visible: item.buttonType > 0
                             anchors.verticalCenter: parent.verticalCenter
-                            anchors.margins: {right: 5}
-                            text: (item.checked) ? "" : ""
-                            font.family: "Font Awesome 7 Free"
+                            text: (item.checked) ? "\uf14a" : "\uf0c8"
+                            font.family: Theme.font_awesome
                             font.pixelSize: 14
                             color: "white"
                         }
@@ -244,7 +241,7 @@ Rectangle {
                             id: label
                             visible: !item.isSeparator
                             text: !item.isSeparator ? item.modelData.text : "------------------"
-                            font.family: Config.main_font
+                            font.family: Theme.font_display
                             color: (item.isEnabled ? "white" : "#888888")
                         }
                     }
@@ -254,9 +251,9 @@ Rectangle {
                         visible: item.hasChildren
                         anchors.right: parent.right
                         anchors.verticalCenter: parent.verticalCenter
-                        anchors.margins: {right: 5}
-                        text: ""
-                        font.family: "Font Awesome 7 Free"
+                        anchors.rightMargin: 5
+                        text: "\uf0da"
+                        font.family: Theme.font_awesome
                         font.pixelSize: 8
                         color: "white"
                     }
@@ -272,10 +269,11 @@ Rectangle {
 
                             if(item.hasChildren) {
                                 // Open submenu
-                                menuStack.push(menuComponent.createObject(null, {
+                                // Criado pelo StackView, que o destrói ao sair.
+                                menuStack.push(menuComponent, {
                                     handle: entry,
                                     isSubmenu: true
-                                }));
+                                });
                             } else {
                                 item.modelData.triggered()
                                 root.close()
@@ -329,17 +327,12 @@ Rectangle {
         root.visible = true
         root.isOpen = true
 
-        const menu = menuComponent.createObject(null, {
+        menuStack.clear()
+        menuStack.push(menuComponent, {
             handle: defaultMenuHandle,
             isSubmenu: false
         })
-
-        menuStack.push(menu)
-
-        Qt.callLater(() => {
-            menuContainer.visible = true
-            menuContainer.y = y
-        })
+        menuContainer.visible = true
     }
 
     function close() {

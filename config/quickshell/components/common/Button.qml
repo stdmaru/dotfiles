@@ -53,10 +53,10 @@ Button {
             anchors.verticalCenter: parent.verticalCenter
             text: root.text
             visible: root.text !== "" && root.text !== undefined
-            font.family: Config.main_font
+            font.family: Theme.font_display
             font.pixelSize: root.fontSize
             font.weight: Font.Bold
-            color: root.active ? "#ffffff" : "#b1b1b5"
+            color: root.active ? Theme.white : Theme.barText
             verticalAlignment: Text.AlignVCenter
             horizontalAlignment: Text.AlignHCenter
         }

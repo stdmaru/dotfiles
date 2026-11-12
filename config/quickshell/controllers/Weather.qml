@@ -5,12 +5,11 @@ import Quickshell
 import Quickshell.Io
 import QtQuick
 
+// Clima via OpenWeatherMap, com cache em disco para respeitar a cota da API.
+// Configuração por variáveis de ambiente: _SHELL_WEATHER_API_KEY,
+// _SHELL_WEATHER_LOCATION e _SHELL_WEATHER_LANG.
 Singleton {
     id: root
-    property int loadStep: 0
-    property var _location
-    property var _current
-    property var _forecast
 
     property bool hasData: false
     property string glyph: "\ue226"
@@ -24,32 +23,78 @@ Singleton {
     property string country: ""
     property var forecast: []
 
-    readonly property int forecastIntervalMin: 6 * 60     // Forecast reload interval in 6h
-    readonly property int conditionIntervalMin: 60        // Condition reload interval in 1h
+    readonly property int forecastIntervalMin: 6 * 60     // Previsão: a cada 6h
+    readonly property int conditionIntervalMin: 60        // Condição atual: a cada 1h
     readonly property string cacheDir: Quickshell.shellDir + "/userdata/.cache/weather"
-    readonly property string apiKey: Quickshell.env("_SHELL_WEATHER_API_KEY")
-    readonly property string location: Quickshell.env("_SHELL_WEATHER_LOCATION")
-    readonly property string language: Quickshell.env("_SHELL_WEATHER_LANG")
-    readonly property FileView locationFile: FileView { path: Qt.resolvedUrl(root.cacheDir + "/location.json"); blockLoading: true; printErrors: false; }
-    readonly property FileView currentFile: FileView { path: Qt.resolvedUrl(root.cacheDir + "/current.json"); blockLoading: true; printErrors: false; }
-    readonly property FileView forecastFile: FileView { path: Qt.resolvedUrl(root.cacheDir + "/forecast.json"); blockLoading: true; printErrors: false; }
-    readonly property var timer: Timer { interval: 10 * 60 * 1000; running: true; repeat: true; onTriggered: root.refreshWeather() }
+    readonly property string apiKey: Quickshell.env("_SHELL_WEATHER_API_KEY") ?? ""
+    readonly property string location: Quickshell.env("_SHELL_WEATHER_LOCATION") ?? ""
+    readonly property string language: (Quickshell.env("_SHELL_WEATHER_LANG") || "pt_br").toLowerCase()
+    readonly property bool configured: apiKey !== "" && location !== ""
+    readonly property string apiBase: "https://api.openweathermap.org"
 
-    function init(): void {
-        console.info("Weather daemon started")
-        root.refreshWeather()
+    property bool started: false
+    property bool refreshing: false
+    property var _location: null
+    property var _current: null
+    property var _forecast: null
+
+    FileView { id: locationFile; path: root.cacheDir + "/location.json"; blockLoading: true; printErrors: false }
+    FileView { id: currentFile; path: root.cacheDir + "/current.json"; blockLoading: true; printErrors: false }
+    FileView { id: forecastFile; path: root.cacheDir + "/forecast.json"; blockLoading: true; printErrors: false }
+
+    Process {
+        id: prepareCache
+        command: ["mkdir", "-p", "--", root.cacheDir]
+        onExited: root.refreshWeather()
     }
 
-    function refreshWeather() {
-        loadStep = 0
+    Timer {
+        interval: 10 * 60 * 1000
+        running: root.started && root.configured
+        repeat: true
+        onTriggered: root.refreshWeather()
+    }
+
+    function init(): void {
+        if (root.started)
+            return
+        root.started = true
+
+        if (!root.configured) {
+            console.warn("Weather disabled: set _SHELL_WEATHER_API_KEY and _SHELL_WEATHER_LOCATION")
+            return
+        }
+        prepareCache.running = true
+    }
+
+    function refreshWeather(): void {
+        if (!root.configured || root.refreshing)
+            return
+        root.refreshing = true
         loadLocation()
     }
 
-    function ensureFilesExists() {
-        Quickshell.execDetached(["mkdir", "-p", cacheDir])
-        Quickshell.execDetached(["touch", cacheDir + "/location.json"])
-        Quickshell.execDetached(["touch", cacheDir + "/current.json"])
-        Quickshell.execDetached(["touch", cacheDir + "/forecast.json"])
+    function readCache(file): var {
+        try {
+            const data = JSON.parse(file.text())
+            return data && typeof data === "object" ? data : {}
+        } catch (e) {
+            return {}
+        }
+    }
+
+    function isFresh(cache, maxAgeMin): bool {
+        return cache.cod == 200
+            && !!cache.lastUpdate
+            && Date.now() <= cache.lastUpdate + maxAgeMin * 60 * 1000
+            && cache.lastLocation?.name === root._location?.name
+    }
+
+    function openInBrowser(): void {
+        const query = ["weather", root.region, root.state, root.country]
+            .filter(part => part).join(" ")
+        Quickshell.execDetached(["xdg-open",
+            `https://www.google.com/search?q=${encodeURIComponent(query)}`])
     }
 
     function buildWeather(location, current, forecast): var {
@@ -72,7 +117,7 @@ Singleton {
         else if (location?.timezone !== undefined)
             tzOffset = location.timezone
 
-        // ---- Build daily forecast (mesma lógica que você já tinha)
+        // ---- Agrupa as entradas de 3h em dias (no fuso da cidade)
         const dailyMap = new Map()
 
         if (forecast && Array.isArray(forecast.list)) {
@@ -160,106 +205,103 @@ Singleton {
         root.hasData = true
     }
 
-    function loadLocation() {
-        ensureFilesExists()
-
-        var loc = {}
-        try { loc = JSON.parse(root.locationFile.text()) } catch(e) {}
-
-        if (loc.name && loc.lastSearchQuery === root.location) {
-            _location = loc
+    function loadLocation(): void {
+        const cached = readCache(locationFile)
+        if (cached.name && cached.lastSearchQuery === root.location) {
+            root._location = cached
             loadCurrent()
             return
         }
 
-        const callUrl =
-            `http://api.openweathermap.org/geo/1.0/direct` +
-            `?q=${root.location}&limit=1&appid=${root.apiKey}`
-
         Utils.fetch({
-            method: "GET",
-            url: callUrl,
-            success: (response) => {
-                loc = response[0]
-                loc.lastSearchQuery = root.location
-                root.locationFile.setText(JSON.stringify(loc))
-                _location = loc
+            url: `${root.apiBase}/geo/1.0/direct`
+                + `?q=${encodeURIComponent(root.location)}&limit=1&appid=${root.apiKey}`,
+            success: response => {
+                const found = Array.isArray(response) ? response[0] : null
+                if (!found) {
+                    console.warn(`Weather location not found: ${root.location}`)
+                    root.refreshing = false
+                    return
+                }
+                found.lastSearchQuery = root.location
+                locationFile.setText(JSON.stringify(found))
+                root._location = found
                 loadCurrent()
             },
-            error: () => console.warn("Failed to load location")
+            error: (response, status) => {
+                console.warn(`Failed to load weather location (HTTP ${status})`)
+                // Sem rede: reaproveita a última localização conhecida.
+                if (cached.name) {
+                    root._location = cached
+                    loadCurrent()
+                } else {
+                    root.refreshing = false
+                }
+            }
         })
     }
 
-    function loadCurrent() {
-        var cur = {}
-        try { cur = JSON.parse(root.currentFile.text()) } catch(e) {}
+    function coordinatesQuery(): string {
+        return `?lat=${root._location.lat}&lon=${root._location.lon}`
+            + `&appid=${root.apiKey}&lang=${root.language}&units=metric`
+    }
 
-        const expired =
-            !cur.lastUpdate ||
-            Date.now() > cur.lastUpdate + root.conditionIntervalMin * 60 * 1000
-
-        if (cur.cod === "200" && !expired && cur.lastLocation?.name === _location.name) {
-            _current = cur
+    function loadCurrent(): void {
+        const cached = readCache(currentFile)
+        if (isFresh(cached, root.conditionIntervalMin)) {
+            root._current = cached
             loadForecast()
             return
         }
 
-        const callUrl =
-            `https://api.openweathermap.org/data/2.5/weather` +
-            `?lat=${_location.lat}&lon=${_location.lon}` +
-            `&appid=${root.apiKey}&lang=${root.language}&units=metric`
-
         Utils.fetch({
-            method: "GET",
-            url: callUrl,
-            success: (response) => {
+            url: `${root.apiBase}/data/2.5/weather${coordinatesQuery()}`,
+            success: response => {
                 response.lastUpdate = Date.now()
-                response.lastLocation = _location
-                root.currentFile.setText(JSON.stringify(response))
-                _current = response
+                response.lastLocation = root._location
+                currentFile.setText(JSON.stringify(response))
+                root._current = response
                 loadForecast()
             },
-            error: () => console.warn("Failed to load current weather")
+            error: (response, status) => {
+                console.warn(`Failed to load current weather (HTTP ${status})`)
+                // Dados antigos são melhores do que nenhum dado.
+                root._current = cached.weather ? cached : root._current
+                loadForecast()
+            }
         })
     }
 
-    function loadForecast() {
-        var frc = {}
-        try { frc = JSON.parse(root.forecastFile.text()) } catch(e) {}
-
-        const expired =
-            !frc.lastUpdate ||
-            Date.now() > frc.lastUpdate + root.forecastIntervalMin * 60 * 1000
-
-        if (frc.cod === "200" && !expired && frc.lastLocation?.name === _location.name) {
-            _forecast = frc
+    function loadForecast(): void {
+        const cached = readCache(forecastFile)
+        if (isFresh(cached, root.forecastIntervalMin)) {
+            root._forecast = cached
             finalizeWeather()
             return
         }
 
-        const callUrl =
-            `http://api.openweathermap.org/data/2.5/forecast` +
-            `?lat=${_location.lat}&lon=${_location.lon}` +
-            `&appid=${root.apiKey}&lang=${root.language}&units=metric`
-
         Utils.fetch({
-            method: "GET",
-            url: callUrl,
-            success: (response) => {
+            url: `${root.apiBase}/data/2.5/forecast${coordinatesQuery()}`,
+            success: response => {
                 response.lastUpdate = Date.now()
-                response.lastLocation = _location
-                root.forecastFile.setText(JSON.stringify(response))
-                _forecast = response
+                response.lastLocation = root._location
+                forecastFile.setText(JSON.stringify(response))
+                root._forecast = response
                 finalizeWeather()
             },
-            error: () => console.warn("Failed to load forecast")
+            error: (response, status) => {
+                console.warn(`Failed to load weather forecast (HTTP ${status})`)
+                root._forecast = cached.list ? cached : root._forecast
+                finalizeWeather()
+            }
         })
     }
 
-    function finalizeWeather() {
-        const weather = buildWeather(_location, _current, _forecast)
-        applyWeather(weather)
-        console.info("Weather updated")
+    function finalizeWeather(): void {
+        root.refreshing = false
+        if (!root._current)
+            return
+        applyWeather(buildWeather(root._location, root._current, root._forecast))
     }
 
     function getGlyph(icon): string {

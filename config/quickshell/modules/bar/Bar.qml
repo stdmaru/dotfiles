@@ -1,8 +1,7 @@
 import qs.config
 import qs.components.common
 import qs.controllers
-import qs.components.topbar
-import qs.components.topbar.notifications
+import qs.modules.systemmenu
 import Quickshell
 import Quickshell.Hyprland
 import QtQuick
@@ -14,7 +13,6 @@ Rectangle {
 
   required property PanelWindow parentWindow
   required property TrayMenu trayMenu
-  required property var launcherController
 
   property bool systemTrayCollapsed: false
   property real systemTrayProgress: systemTrayCollapsed ? 0 : 1
@@ -42,17 +40,21 @@ Rectangle {
   SystemMenu {
     id: systemMenu
     parentWindow: root.parentWindow
-    sessionController: root.launcherController
+    barBottom: root.barBottom
   }
 
   Connections {
-    target: root.launcherController
+    target: Session
     function onLockedChanged(): void {
-      if (!root.launcherController.locked)
-        return
-      systemMenu.closeMenu()
-      root.trayMenu.isOpen = false
+      if (Session.locked)
+        root.trayMenu.close()
     }
+  }
+
+  // Relógio da barra; só acorda na virada do minuto.
+  SystemClock {
+    id: clock
+    precision: SystemClock.Minutes
   }
 
   // Main rect
@@ -60,7 +62,7 @@ Rectangle {
     id: mainRect
     anchors.fill: parent
     anchors.margins: Config.frame_enabled ? 0 : 5
-    color: "#11111b"
+    color: Theme.crust
     radius: Config.frame_enabled ? 0 : Config.topbar_corner_radius
 
     RowLayout {
@@ -81,16 +83,16 @@ Rectangle {
           Button {
             height: mainRect.height - 6
             contentItem: Label {
-              font.family: "JetBrainsMono Nerd Font Mono"
+              font.family: Theme.font_nerd
               font.pixelSize: 32
-              color: "#ffffff"
+              color: Theme.white
               //text: "\ue795" // terminal
               text: "\udb82\udcc7" // arch-icon
               //text: "\uf40e" // Apps icon
             }
             tooltip: "Aplicativos"
             onClicked: {
-              root.launcherController.toggleLauncher()
+              Launcher.toggle()
             }
           }
 
@@ -99,7 +101,7 @@ Rectangle {
 
           // Focused window
           Button {
-            visible: Hyprland.focusedWorkspace?.toplevels?.values.length > 0 ? true : false
+            visible: (Hyprland.focusedWorkspace?.toplevels?.values.length ?? 0) > 0
             iconSource: Utils.getAppIcon(Hyprland.activeToplevel?.wayland?.appId ?? "", "application-x-executable")
             height: mainRect.height - 6
             text: Hyprland.activeToplevel?.title ? (Hyprland.activeToplevel.title.length > 60 ?
@@ -124,60 +126,38 @@ Rectangle {
             id: btn
             height: mainRect.height - 6
             tooltip: (Weather.hasData) ? `${Weather.region}, ${Weather.state} - ${Weather.country}\nSensação Térmica — ${Weather.tempFeelsLike}${Config.temperature_metric}\n▲${Weather.tempMax}${Config.temperature_metric} ▼${Weather.tempMin}${Config.temperature_metric}\n\n${Weather.description}` : ""
-            onClicked: function() {
-              Quickshell.execDetached(["xdg-open", `https://www.google.com/search?q=weather ${Weather.region} ${Weather.state} ${Weather.country}`])
-            }
+            onClicked: Weather.openInBrowser()
 
             contentItem: Row {
               spacing: 10
 
               Label {
-                font.family: "JetBrainsMono Nerd Font Mono"
+                font.family: Theme.font_nerd
                 font.pixelSize: 30
-                color: btn.active ? "#ffffff" : "#b1b1b5"
+                color: btn.active ? Theme.white : Theme.barText
                 text: (Weather.hasData) ? `${Weather.glyph}` : "\ue347"
               }
 
               Label {
-                font.family: Config.main_font
+                font.family: Theme.font_display
                 font.pixelSize: btn.fontSize
-                color: btn.active ? "#ffffff" : "#b1b1b5"
-                text: (Weather.hasData) ? `${Weather.tempCurrent}${Config.temperature_metric}` : ""
+                color: btn.active ? Theme.white : Theme.barText
+                text: (Weather.hasData) ? `${Weather.tempCurrent}${Config.temperature_metric}` : "\uf141"
               }
             }
           }
           
-          // Date
+          // Data e hora; abre o painel de notificações
           Button {
-              height: mainRect.height - 6
-
-              property var now: new Date()
-
-              text: {
-                  const day = Qt.formatDateTime(now, "dd")
-                  const time = Qt.formatDateTime(now, "HH:mm")
-
-                  const months = [
-                      "jan", "fev", "mar", "abr", "mai", "jun",
-                      "jul", "ago", "set", "out", "nov", "dez"
-                  ]
-
-                  const month = months[now.getMonth()]
-
-                  return `${day} de ${month} ${time}`
-              }
-
-              onClicked: function() {
-                Notifications.trayOpen = !Notifications.trayOpen
-              }
-
-              // Atualiza a cada minuto
-              Timer {
-                  interval: 1_000
-                  running: true
-                  repeat: true
-                  onTriggered: parent.now = new Date()
-              }
+            height: mainRect.height - 6
+            active: Notifications.trayOpen
+            text: {
+              const months = ["jan", "fev", "mar", "abr", "mai", "jun",
+                              "jul", "ago", "set", "out", "nov", "dez"]
+              const now = clock.date
+              return `${Qt.formatDateTime(now, "dd")} de ${months[now.getMonth()]} ${Qt.formatDateTime(now, "HH:mm")}`
+            }
+            onClicked: Notifications.trayOpen = !Notifications.trayOpen
           }
         }
       }
@@ -219,9 +199,9 @@ Rectangle {
           Button {
             height: mainRect.height - 6
             contentItem: Label {
-              font.family: "JetBrainsMono Nerd Font Mono"
+              font.family: Theme.font_nerd
               font.pixelSize: 24
-              color: "#ffffff"
+              color: Theme.white
               text: root.systemTrayCollapsed ? "\uf053" : "\uf054"
             }
             tooltip: root.systemTrayCollapsed ? "Expandir ícones da bandeja" : "Recolher ícones da bandeja"
@@ -233,12 +213,12 @@ Rectangle {
             id: networkButton
             height: mainRect.height - 6
             contentItem: Label {
-              font.family: "Font Awesome 7 Free"
+              font.family: Theme.font_awesome
               font.pixelSize: 16
-              color: "#ffffff"
-              text: ""
+              color: Theme.white
+              text: "\uf6ff"
             }
-            tooltip: "Rede"
+            tooltip: Network.online ? `Rede (${Network.activeConnection})` : "Rede (desconectado)"
             onPressedChanged: systemMenu.noteToggleButtonPress(pressed)
             onClicked: systemMenu.toggle("network")
           }
@@ -248,12 +228,13 @@ Rectangle {
             id: soundButton
             height: mainRect.height - 6
             contentItem: Label {
-              font.family: "Font Awesome 7 Free"
+              font.family: Theme.font_awesome
               font.pixelSize: 16
-              color: "#ffffff"
-              text: ""
+              color: Theme.white
+              text: Audio.muted || Audio.volume <= 0 ? "\uf6a9"
+                : Audio.volume < 0.5 ? "\uf027" : "\uf028"
             }
-            tooltip: "Som"
+            tooltip: Audio.muted ? "Som (silenciado)" : `Som (${Math.round(Audio.volume * 100)}%)`
             onPressedChanged: systemMenu.noteToggleButtonPress(pressed)
             onClicked: systemMenu.toggle("sound")
           }
@@ -263,10 +244,10 @@ Rectangle {
             id: powerButton
             height: mainRect.height - 6
             contentItem: Label {
-              font.family: "Font Awesome 7 Free"
+              font.family: Theme.font_awesome
               font.pixelSize: 16
-              color: "#ffffff"
-              text: ""
+              color: Theme.white
+              text: "\uf011"
             }
             tooltip: "Energia e sessão"
             onPressedChanged: systemMenu.noteToggleButtonPress(pressed)

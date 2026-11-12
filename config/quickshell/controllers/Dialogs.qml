@@ -1,8 +1,10 @@
 pragma Singleton
 
+import qs.config
 import Quickshell
 import Quickshell.Io
 import Quickshell.Hyprland
+import qs.controllers
 
 Singleton {
     id: root
@@ -12,12 +14,15 @@ Singleton {
     property string title: ""
     property string message: ""
     property string icon: ""
-    property string iconColor: "#89b4fa"
-    property string targetScreenName: "DP-2"
+    property string iconColor: Theme.blue
+    property string targetScreenName: Screens.primaryName
     property var options: []
     property var fields: []
     property var values: ({})
     property bool openPending: false
+    // Chamado uma única vez com (value, inputValues) quando o usuário escolhe
+    // uma opção; descartado se o diálogo for fechado sem escolha.
+    property var acceptCallback: null
 
     signal accepted(var value, var inputValues)
     signal rejected()
@@ -47,13 +52,14 @@ Singleton {
         })
     }
 
-    function prepare(kind, dialogTitle, dialogMessage, dialogIcon, dialogIconColor): void {
+    function prepare(kind, dialogTitle, dialogMessage, dialogIcon, dialogIconColor, onAccept): void {
+        root.acceptCallback = typeof onAccept === "function" ? onAccept : null
         root.mode = kind
         root.title = dialogTitle || ""
         root.message = dialogMessage || ""
         root.icon = String(dialogIcon || "")
-        root.iconColor = String(dialogIconColor || "#89b4fa")
-        root.targetScreenName = Hyprland.focusedMonitor?.name ?? "DP-2"
+        root.iconColor = String(dialogIconColor || Theme.blue)
+        root.targetScreenName = Hyprland.focusedMonitor?.name ?? Screens.primaryName
         root.values = ({})
         root.openPending = true
     }
@@ -68,33 +74,30 @@ Singleton {
         if (!root.openPending)
             return
 
+        // Abre no monitor onde o cursor está; as telas do Quickshell já
+        // consideram a rotação, ao contrário do tamanho bruto do monitor.
         if (exitCode === 0) {
             const match = String(cursorText).trim().match(/(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/)
-            if (match) {
-                const x = Number(match[1])
-                const y = Number(match[2])
-                const monitor = Hyprland.monitors.values.find(item =>
-                    x >= item.x && x < item.x + item.width
-                    && y >= item.y && y < item.y + item.height
-                )
-                if (monitor)
-                    root.targetScreenName = monitor.name
-            }
+            const screen = match ? Screens.at(Number(match[1]), Number(match[2])) : null
+            if (screen)
+                root.targetScreenName = screen.name
         }
+        if (!Screens.byName(root.targetScreenName))
+            root.targetScreenName = Screens.primaryName
 
         root.openPending = false
         root.open = true
     }
 
-    function showNotice(message, title, icon, iconColor): void {
-        root.prepare("notice", title || "Aviso", message, icon, iconColor)
+    function showNotice(message, title, icon, iconColor, onAccept): void {
+        root.prepare("notice", title || "Aviso", message, icon, iconColor, onAccept)
         root.fields = []
         root.options = root.normalizeOptions([], [{ text: "OK", value: "ok", role: "primary" }])
         root.beginOpen()
     }
 
-    function showPrompt(message, options, title, icon, iconColor): void {
-        root.prepare("prompt", title || "Confirmação", message, icon, iconColor)
+    function showPrompt(message, options, title, icon, iconColor, onAccept): void {
+        root.prepare("prompt", title || "Confirmação", message, icon, iconColor, onAccept)
         root.fields = []
         root.options = root.normalizeOptions(options, [
             { text: "Cancelar", value: "cancel", role: "normal" },
@@ -103,8 +106,8 @@ Singleton {
         root.beginOpen()
     }
 
-    function showInputs(message, fields, options, title, icon, iconColor): void {
-        root.prepare("input", title || "Entrada", message, icon, iconColor)
+    function showInputs(message, fields, options, title, icon, iconColor, onAccept): void {
+        root.prepare("input", title || "Entrada", message, icon, iconColor, onAccept)
         const initialValues = ({})
         const normalizedFields = (fields || []).map((field, index) => {
             const key = String(field.key ?? field.id ?? `field${index + 1}`)
@@ -134,11 +137,18 @@ Singleton {
     }
 
     function choose(option): void {
+        if (!root.open)
+            return
+        const callback = root.acceptCallback
+        const inputValues = Object.assign({}, root.values)
+        root.acceptCallback = null
         root.open = false
-        root.accepted(option.value, Object.assign({}, root.values))
+        root.accepted(option.value, inputValues)
+        callback?.(option.value, inputValues)
     }
 
     function close(): void {
+        root.acceptCallback = null
         if (root.openPending) {
             root.openPending = false
             return

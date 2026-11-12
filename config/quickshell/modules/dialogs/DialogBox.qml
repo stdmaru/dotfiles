@@ -41,6 +41,8 @@ PanelWindow {
         anchors.fill: parent
         focus: Dialogs.open && root.isTargetScreen
         Keys.onEscapePressed: Dialogs.close()
+        Keys.onReturnPressed: root.submit()
+        Keys.onEnterPressed: root.submit()
 
         Rectangle {
             id: backdrop
@@ -74,7 +76,7 @@ PanelWindow {
             MouseArea {
                 anchors.fill: parent
                 acceptedButtons: Qt.AllButtons
-                onClicked: mouse.accepted = true
+                onClicked: mouse => mouse.accepted = true
             }
 
             Column {
@@ -100,7 +102,7 @@ PanelWindow {
                             height: parent.height
                             text: Dialogs.icon
                             color: Dialogs.iconColor
-                            font.family: "JetBrainsMono Nerd Font Mono"
+                            font.family: Theme.font_nerd
                             font.pixelSize: 26
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
@@ -112,7 +114,7 @@ PanelWindow {
                             - (titleIconContainer.visible ? titleIconContainer.width + parent.spacing : 0)
                         text: Dialogs.title
                         color: "#e6e6f0"
-                        font.family: Config.main_font
+                        font.family: Theme.font_display
                         font.pixelSize: 18
                         font.weight: Font.DemiBold
                         verticalAlignment: Text.AlignVCenter
@@ -147,7 +149,7 @@ PanelWindow {
                     visible: Dialogs.message.length > 0
                     text: Dialogs.message
                     color: "#bfc0d0"
-                    font.family: Config.main_font
+                    font.family: Theme.font_display
                     font.pixelSize: 14
                     wrapMode: Text.Wrap
                     lineHeight: 1.2
@@ -176,7 +178,7 @@ PanelWindow {
                                 visible: fieldDelegate.modelData.label.length > 0
                                 text: fieldDelegate.modelData.label
                                 color: "#bfc0d0"
-                                font.family: Config.main_font
+                                font.family: Theme.font_display
                                 font.pixelSize: 12
                             }
 
@@ -189,15 +191,15 @@ PanelWindow {
                                 echoMode: fieldDelegate.modelData.password ? TextInput.Password : TextInput.Normal
                                 color: "#f4f4f8"
                                 placeholderTextColor: "#77778b"
-                                font.family: Config.main_font
+                                font.family: Theme.font_display
                                 font.pixelSize: 14
                                 leftPadding: 12
                                 rightPadding: 12
                                 background: Rectangle {
                                     radius: 10
-                                    color: "#11111b"
+                                    color: Theme.crust
                                     border.width: field.activeFocus ? 2 : 1
-                                    border.color: field.activeFocus ? "#89b4fa" : "#38384d"
+                                    border.color: field.activeFocus ? Theme.blue : Theme.outline
                                 }
                                 onTextChanged: Dialogs.setInputValue(fieldDelegate.modelData.key, text)
                                 onAccepted: root.submit()
@@ -226,8 +228,8 @@ PanelWindow {
                             contentItem: Text {
                                 id: optionText
                                 text: modelData.text
-                                color: modelData.role === "primary" ? "#11111b" : "#e6e6f0"
-                                font.family: Config.main_font
+                                color: modelData.role === "primary" ? Theme.crust : "#e6e6f0"
+                                font.family: Theme.font_display
                                 font.pixelSize: 13
                                 font.weight: Font.DemiBold
                                 horizontalAlignment: Text.AlignHCenter
@@ -236,10 +238,10 @@ PanelWindow {
                             background: Rectangle {
                                 radius: 11
                                 color: modelData.role === "primary"
-                                    ? (parent.down ? "#74a8f5" : "#89b4fa")
+                                    ? (parent.down ? "#74a8f5" : Theme.blue)
                                     : (parent.down ? "#414155" : parent.hovered ? "#30303f" : "#252532")
                                 border.width: modelData.role === "primary" ? 0 : 1
-                                border.color: "#38384d"
+                                border.color: Theme.outline
                             }
                         }
                     }

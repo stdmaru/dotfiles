@@ -1,81 +1,84 @@
 pragma Singleton
 
+import qs.config
 import QtQuick
 import Quickshell
 import Quickshell.Hyprland
 
+// Ponto único para dispatchers do Hyprland, cobrindo a sintaxe Lua e a legada.
 Singleton {
     id: root
 
-    function init() {
-        console.info("Hyprland daemon started")
+    // Singletons são criados sob demanda; o shell chama init() para garantir
+    // que o tratamento de eventos esteja ativo desde o início.
+    function init(): void {}
+
+    function normalizeAddress(address): string {
+        return String(address ?? "").replace(/^0x/i, "").toLowerCase()
+    }
+
+    function findWindow(address): var {
+        const target = normalizeAddress(address)
+        if (!target)
+            return null
+        return Hyprland.toplevels.values.find(win =>
+            normalizeAddress(win.address) === target) ?? null
     }
 
     function windowExists(address: string): bool {
-        const targetAddress = String(address).replace(/^0x/i, "").toLowerCase()
-        if (!targetAddress)
-            return false
-
-        for (const win of Hyprland.toplevels.values) {
-            if (String(win.address).replace(/^0x/i, "").toLowerCase() === targetAddress)
-                return true
-        }
-        return false
+        return findWindow(address) !== null
     }
 
-    function dispatchToWindow(address: string) {
-        const targetAddress = String(address).replace(/^0x/i, "").toLowerCase()
-        if (!targetAddress)
+    function focusMonitor(name: string): void {
+        if (!name)
             return
+        Hyprland.dispatch(Hyprland.usingLua
+            ? `hl.dsp.focus({ monitor = "${name}" })`
+            : `focusmonitor ${name}`)
+    }
 
-        const window = Hyprland.toplevels.values.find(win =>
-            String(win.address).replace(/^0x/i, "").toLowerCase() === targetAddress
-        )
+    function focusWorkspace(id: int): void {
+        Hyprland.dispatch(Hyprland.usingLua
+            ? `hl.dsp.focus({ workspace = ${id} })`
+            : `workspace ${id}`)
+    }
+
+    function focusWindow(address: string): void {
+        const selector = `address:0x${normalizeAddress(address)}`
+        Hyprland.dispatch(Hyprland.usingLua
+            ? `hl.dsp.focus({ window = "${selector}" })`
+            : `focuswindow ${selector}`)
+    }
+
+    function exitSession(): void {
+        Hyprland.dispatch(Hyprland.usingLua ? "hl.dsp.exit()" : "exit")
+    }
+
+    // Leva o usuário até a janela: monitor, workspace e por fim o foco.
+    function dispatchToWindow(address: string): void {
+        const window = findWindow(address)
         if (!window)
             return
 
         const monitor = window.monitor ?? window.workspace?.monitor
         if (monitor?.name && Hyprland.focusedMonitor?.name !== monitor.name)
-            Hyprland.dispatch(Hyprland.usingLua
-                ? `hl.dsp.focus({ monitor = "${monitor.name}" })`
-                : `focusmonitor ${monitor.name}`)
+            focusMonitor(monitor.name)
 
-        // Focusing only the window address can leave the user on the old
-        // workspace. Activate its workspace first, then focus the client.
+        // Focar apenas pelo endereço pode deixar o usuário na workspace
+        // antiga; ative a workspace da janela antes.
         if (window.workspace && !window.workspace.focused)
             window.workspace.activate()
 
-        const windowSelector = `address:0x${targetAddress}`
-        Hyprland.dispatch(Hyprland.usingLua
-            ? `hl.dsp.focus({ window = "${windowSelector}" })`
-            : `focuswindow ${windowSelector}`)
+        focusWindow(address)
     }
 
     Connections {
         target: Hyprland
+        enabled: Config.focus_urgent_windows
 
         function onRawEvent(event: HyprlandEvent): void {
-            if (event.name.endsWith("v2"))
-                return;
-            
-            if (event.name === "urgent" ) {
+            if (event.name === "urgent")
                 root.dispatchToWindow(event.data)
-            } else if (event.name === "configreloaded") {
-                //root.configReloaded();
-                //root.reloadDynamicConfs();
-            } else if (["workspace", "moveworkspace", "activespecial", "focusedmon"].includes(event.name)) {
-                //Hyprland.refreshWorkspaces();
-                //Hyprland.refreshMonitors();
-            } else if (["openwindow", "closewindow", "movewindow"].includes(event.name)) {
-                //Hyprland.refreshToplevels();
-                //Hyprland.refreshWorkspaces();
-            } else if (event.name.includes("mon")) {
-                //Hyprland.refreshMonitors();
-            } else if (event.name.includes("workspace")) {
-                //Hyprland.refreshWorkspaces();
-            } else if (event.name.includes("window") || event.name.includes("group") || ["pin", "fullscreen", "changefloatingmode", "minimize"].includes(event.name)) {
-                //Hyprland.refreshToplevels();
-            }
         }
     }
 }

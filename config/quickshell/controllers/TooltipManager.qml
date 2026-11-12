@@ -32,7 +32,7 @@ Singleton {
         TextMetrics {
             id: textMetrics
             text: root.longestLine(root.activeText)
-            font.family: Config.main_font
+            font.family: Theme.font_display
             font.pixelSize: 12
             font.weight: Font.Medium
         }
@@ -50,7 +50,7 @@ Singleton {
             text: root.activeText
             width: popup.width - 24
             color: "#dce0ef"
-            font.family: Config.main_font
+            font.family: Theme.font_display
             font.pixelSize: 12
             font.weight: Font.Medium
             horizontalAlignment: Text.AlignHCenter

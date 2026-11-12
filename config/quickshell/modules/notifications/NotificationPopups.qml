@@ -3,12 +3,11 @@ pragma ComponentBehavior: Bound
 import qs.config
 import qs.controllers
 import QtQuick
-import QtQuick.Shapes
 
 Item {
     id: root
+    // Barra da qual a pilha de popups brota.
     required property Item attachedTo
-    required property bool isPrimaryScreen
 
     readonly property real padding: Math.min(10, listView.contentHeight)
     readonly property real shoulderProgress: Config.notification_panel_emergence > 0
@@ -18,12 +17,9 @@ Item {
 
     anchors.horizontalCenter: parent.horizontalCenter
     anchors.top: attachedTo.bottom
-    anchors.topMargin: root.attachedTo?.barBottom !== undefined ? (root.attachedTo.barBottom - root.attachedTo.height) : (Config.frame_enabled ? Config.frame_thickness : -5)
+    anchors.topMargin: root.attachedTo.barBottom - root.attachedTo.height
     width: Math.min(470, parent.width - 24)
     height: Math.min(listView.contentHeight + padding * 2, 500)
-    // Keep the ListView active while empty so its add transition also runs
-    // when the first notification arrives.
-    visible: isPrimaryScreen
 
     Behavior on height {
         NumberAnimation {
@@ -35,7 +31,7 @@ Item {
     Rectangle {
         id: background
         anchors.fill: parent
-        color: "#11111b"
+        color: Theme.crust
         topLeftRadius: 0
         topRightRadius: 0
         bottomLeftRadius: 15
@@ -124,53 +120,22 @@ Item {
         }
     }
 
-    // Mirror the tray's curved shoulders so the popup stack grows out of the
-    // topbar rather than appearing as a detached rectangle.
-    Shape {
-        id: leftDockShoulder
-        readonly property real growth: Config.notification_panel_emergence * root.shoulderProgress
+    // Mesmos ombros curvos do painel, para a pilha de popups crescer a partir
+    // da barra em vez de surgir como um retângulo solto.
+    DockShoulder {
         x: background.x - width
         y: background.y
-        width: Config.notification_panel_emergence
-        height: growth
-        visible: width > 0 && height > 0
         z: 2
-
-        ShapePath {
-            fillColor: background.color
-            strokeColor: "transparent"
-            startX: 0
-            startY: 0
-            PathCubic {
-                x: leftDockShoulder.width; y: leftDockShoulder.height
-                control1X: leftDockShoulder.width * 0.5523; control1Y: 0
-                control2X: leftDockShoulder.width; control2Y: leftDockShoulder.height * 0.4477
-            }
-            PathLine { x: leftDockShoulder.width; y: 0 }
-        }
+        progress: root.shoulderProgress
+        color: background.color
     }
 
-    Shape {
-        id: rightDockShoulder
+    DockShoulder {
+        mirrored: true
         x: background.x + background.width
-        readonly property real growth: Config.notification_panel_emergence * root.shoulderProgress
         y: background.y
-        width: Config.notification_panel_emergence
-        height: growth
-        visible: width > 0 && height > 0
         z: 2
-
-        ShapePath {
-            fillColor: background.color
-            strokeColor: "transparent"
-            startX: rightDockShoulder.width
-            startY: 0
-            PathCubic {
-                x: 0; y: rightDockShoulder.height
-                control1X: rightDockShoulder.width * 0.4477; control1Y: 0
-                control2X: 0; control2Y: rightDockShoulder.height * 0.4477
-            }
-            PathLine { x: 0; y: 0 }
-        }
+        progress: root.shoulderProgress
+        color: background.color
     }
 }

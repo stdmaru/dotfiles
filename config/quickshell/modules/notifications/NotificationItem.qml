@@ -8,12 +8,15 @@ import QtQuick.Controls
 
 SwipeDelegate {
     id: root
-    required property var modelData;
-    required property string scene;
-    property string avatarSource: ""
-    property string displayBody: ""
-    property var groupedNotifications: []
-    
+    // Entrada exibida (Notifications.NotificationEntry).
+    required property var modelData
+    // "popup" (toast temporário) ou "tray" (histórico no painel).
+    required property string scene
+    // Grupo do painel ao qual o cartão pertence; nulo nos popups.
+    property var group: null
+    readonly property string avatarSource: group?.avatarSource ?? ""
+    readonly property string displayBody: group?.displayBody ?? ""
+
     property int implicitHeightCollapsed: 76
 
     property bool expand: false
@@ -24,7 +27,7 @@ SwipeDelegate {
     property real expandProgress: 0
     property real exitProgress: 0
     readonly property string expandedBodyText: {
-        const body = String(root.displayBody || root.modelData.body || "")
+        const body = String(root.displayBody || root.modelData?.body || "")
         const limit = Config.notification_body_max_chars
         if (body.length <= limit)
             return body
@@ -81,7 +84,7 @@ SwipeDelegate {
 
     Timer {
         id: timer
-        interval: root.modelData.expireTimeout > 0
+        interval: root.modelData?.expireTimeout > 0
             ? Math.round(root.modelData.expireTimeout * 1000)
             : 4_000
         onTriggered: {
@@ -111,32 +114,31 @@ SwipeDelegate {
         onTriggered: {
             // A clear-all request owns removal timing so every card can run
             // its exit animation together before the history is discarded.
-            if (root.scene === "tray" && root.modelData.trayExitRequested)
+            if (root.group?.exitRequested)
                 return
 
-            if (root.scene === "popup" && !exitTimer.dismissPermanently
-                    && !Notifications.expirePopup(root.modelData)) {
-                root.isExiting = false
-                root.exitProgress = 0
+            if (root.scene === "popup" && !exitTimer.dismissPermanently) {
+                if (!Notifications.expirePopup(root.modelData)) {
+                    root.isExiting = false
+                    root.exitProgress = 0
+                }
                 return
             }
 
-            if (root.scene !== "popup" || exitTimer.dismissPermanently) {
-                if (root.scene === "tray" && root.groupedNotifications.length > 1)
-                    Notifications.dismissNotificationGroup(root.groupedNotifications)
-                else
-                    Notifications.dismissNotification(root.modelData)
-            }
+            if (root.group)
+                Notifications.dismissNotificationGroup(root.group.notifications)
+            else
+                Notifications.dismissNotification(root.modelData)
         }
 
         property bool dismissPermanently: false
     }
 
     Connections {
-        target: root.modelData
+        target: root.group
 
-        function onTrayExitRequestedChanged() {
-            if (root.scene !== "tray" || !root.modelData.trayExitRequested)
+        function onExitRequestedChanged() {
+            if (!root.group.exitRequested)
                 return
 
             // Restart the timer if this card was already swiped when
@@ -150,13 +152,16 @@ SwipeDelegate {
     Timer {
         id: relativeTimer
         repeat: true
-        running: true
+        running: !!root.modelData
         interval: root.currentInterval
 
         onTriggered: root.updateRelativeTime()
     }
 
     function updateRelativeTime() {
+        if (!root.modelData)
+            return
+
         const delta = Date.now() - modelData.createdAt
 
         // Atualiza texto
@@ -202,11 +207,8 @@ SwipeDelegate {
 
         // Publish the pending removal only after exitProgress has started so
         // showing the empty state cannot interrupt the delegate transition.
-        if (root.scene === "tray" && dismissPermanently) {
-            root.modelData.trayDismissPending = true
-            for (const notification of root.groupedNotifications)
-                notification.trayDismissPending = true
-        }
+        if (root.group && dismissPermanently)
+            root.group.dismissPending = true
     }
 
     function cancelAutomaticExit() {
@@ -219,7 +221,7 @@ SwipeDelegate {
     }
 
     function syncPopupHover() {
-        if (!root.popupActive)
+        if (!root.popupActive || !root.modelData)
             return
 
         const inside = root.popupPointerInside
@@ -237,19 +239,13 @@ SwipeDelegate {
     Component.onCompleted: {
         updateRelativeTime()
         syncPopupHover()
-        if (root.scene === "tray" && root.modelData.trayExitRequested)
+        if (root.group?.exitRequested)
             root.beginExit(true)
     }
 
     HoverHandler {
         id: popupHover
         target: root
-        onHoveredChanged: {
-            if (hovered)
-                container.color = "#3c3d4c"
-            else
-                container.color = "#45475a"
-        }
         cursorShape: (root.pressed) ? Qt.ClosedHandCursor : Qt.PointingHandCursor
     }
 
@@ -280,7 +276,7 @@ SwipeDelegate {
         anchors.top: parent.top
         width: parent.width
         implicitHeight: innerContent.implicitHeight + 10
-        color: "#45475a"
+        color: popupHover.hovered ? "#3c3d4c" : Theme.surface1
         radius: 10
         clip: true
         scale: root.pressed ? 0.99 : 1
@@ -306,7 +302,7 @@ SwipeDelegate {
 
             Rectangle {
                 id: avatar
-                color: "#11111b"
+                color: Theme.crust
                 width: 56
                 height: width
                 radius: width
@@ -317,7 +313,7 @@ SwipeDelegate {
 
                 Image {
                     id: img
-                    source: root.avatarSource || root.modelData.image
+                    source: root.avatarSource || root.modelData?.image || ""
                     width: avatar.width
                     height: avatar.height
                     sourceSize: Qt.size(Math.ceil(width * 2), Math.ceil(height * 2))
@@ -342,6 +338,7 @@ SwipeDelegate {
                     // a small PNG data payload in the notification history.
                     onStatusChanged: {
                         if (status !== Image.Ready
+                                || !root.modelData
                                 || root.modelData.imageBase64
                                 || !String(root.modelData.image).startsWith("image://qsimage/"))
                             return
@@ -358,11 +355,11 @@ SwipeDelegate {
                 }
 
                 Text {
-                    font.family: "Font Awesome 7 Free"
+                    font.family: Theme.font_awesome
                     font.pixelSize: 24
                     anchors.centerIn: parent
-                    text: ""
-                    color: "#b1b1b5"
+                    text: "\uf0f3"
+                    color: Theme.barText
                 }
             }
 
@@ -383,7 +380,7 @@ SwipeDelegate {
                 
                 TextMetrics {
                     id: titleText
-                    text: root.modelData.summary
+                    text: root.modelData?.summary ?? ""
                 }
 
                 Row {
@@ -401,7 +398,7 @@ SwipeDelegate {
                         height: 16
                         anchors.verticalCenter: parent.verticalCenter
                         source: Utils.getAppIcon(
-                            root.modelData.desktopEntry || root.modelData.appName || "",
+                            root.modelData?.desktopEntry || root.modelData?.appName || "",
                             "application-x-executable"
                         )
                         fillMode: Image.PreserveAspectFit
@@ -415,10 +412,10 @@ SwipeDelegate {
                         id: appNameText
                         width: Math.min(implicitWidth, Math.max(0, content.width * 0.5 - 22))
                         height: parent.height
-                        text: root.modelData.appName || "Aplicativo"
-                        font.family: Config.main_font
+                        text: root.modelData?.appName || "Aplicativo"
+                        font.family: Theme.font_display
                         font.pointSize: 11
-                        color: "#b1b1b5"
+                        color: Theme.barText
                         maximumLineCount: 1
                         elide: Text.ElideRight
                         verticalAlignment: Text.AlignVCenter
@@ -433,11 +430,11 @@ SwipeDelegate {
                     id: title
                     anchors.top: content.top
 
-                    font.family: Config.main_font
+                    font.family: Theme.font_display
                     text: titleText.text
                     font.pointSize: 11
 
-                    color: "#b1b1b5"
+                    color: Theme.barText
                     topPadding: 5
                     leftPadding: 5
                     maximumLineCount: 1
@@ -465,11 +462,11 @@ SwipeDelegate {
                     anchors.top: content.top
                     anchors.left: title.right
 
-                    font.family: Config.main_font
+                    font.family: Theme.font_display
                     text: "•"
                     font.pointSize: 11
 
-                    color: "#b1b1b5"
+                    color: Theme.barText
                     topPadding: 6
                     leftPadding: 5
                     maximumLineCount: 1
@@ -502,11 +499,11 @@ SwipeDelegate {
                     anchors.top: content.top
                     anchors.left: timeSeparator.right
 
-                    font.family: Config.main_font
+                    font.family: Theme.font_display
                     text: root.relativeTime
                     font.pointSize: 10
 
-                    color: "#b1b1b5"
+                    color: Theme.barText
 
                     topPadding: 6
                     leftPadding: 5
@@ -517,10 +514,10 @@ SwipeDelegate {
                     id: expandBtn
                     anchors.right: parent.right
                     anchors.verticalCenter: appName.verticalCenter
-                    font.family: Config.main_font
-                    text: (root.expand) ? "" : ""
+                    font.family: Theme.font_display
+                    text: (root.expand) ? "\uf077" : "\uf078"
                     font.pointSize: 10
-                    color: "#b1b1b5"
+                    color: Theme.barText
                     rightPadding: 0
                     bottomPadding: 5
                     maximumLineCount: 1
@@ -537,12 +534,12 @@ SwipeDelegate {
                 Text {
                     id: body
                     anchors.top: title.bottom
-                    font.family: Config.main_font
+                    font.family: Theme.font_display
                     width: parent.width
                     text: bodyText.text
                     wrapMode: Text.WordWrap
                     font.pointSize: 10
-                    color: "#b1b1b5"
+                    color: Theme.barText
                     leftPadding: 4
                     maximumLineCount: 999
                     height: collapsedBody.implicitHeight
@@ -570,14 +567,13 @@ SwipeDelegate {
                     anchors.topMargin: 8
                     width: parent.width
                     spacing: 6
-                    visible: root.expand && root.modelData.actions
-                        && root.modelData.actions.length > 0
+                    visible: root.expand && (root.modelData?.actions?.length ?? 0) > 0
                     height: visible ? implicitHeight : 0
 
                     HoverHandler { id: actionsFlowHover }
 
                     Repeater {
-                        model: root.modelData.actions ?? []
+                        model: root.modelData?.actions ?? []
 
                         delegate: Rectangle {
                             id: actionButton
@@ -586,10 +582,10 @@ SwipeDelegate {
                             width: Math.min(actionLabel.implicitWidth + 22, actionsFlow.width)
                             height: 30
                             radius: 8
-                            enabled: !!root.modelData.sourceNotification
+                            enabled: !!root.modelData?.sourceNotification
                             opacity: enabled ? 1 : 0.48
                             color: !enabled ? "#272838"
-                                : actionHover.hovered ? "#89b4fa" : "#313244"
+                                : actionHover.hovered ? Theme.blue : Theme.surface0
 
                             Behavior on color {
                                 ColorAnimation {
@@ -604,9 +600,9 @@ SwipeDelegate {
                                 anchors.centerIn: parent
                                 width: parent.width - 12
                                 text: actionButton.modelData.text
-                                color: !actionButton.enabled ? "#7f849c"
-                                    : actionHover.hovered ? "#11111b" : "#cdd6f4"
-                                font.family: Config.main_font
+                                color: !actionButton.enabled ? Theme.overlay1
+                                    : actionHover.hovered ? Theme.crust : Theme.text
+                                font.family: Theme.font_display
                                 font.pointSize: 9
                                 horizontalAlignment: Text.AlignHCenter
                                 elide: Text.ElideRight
@@ -635,7 +631,7 @@ SwipeDelegate {
                     width: parent.width
                     height: visible ? 38 : 0
                     spacing: 6
-                    visible: root.expand && root.modelData.hasInlineReply
+                    visible: root.expand && !!root.modelData?.hasInlineReply
 
                     HoverHandler { id: replyRowHover }
 
@@ -643,11 +639,11 @@ SwipeDelegate {
                         id: replyInput
                         width: parent.width - sendReplyButton.width - parent.spacing
                         height: parent.height
-                        placeholderText: root.modelData.inlineReplyPlaceholder || qsTr("Responder…")
-                        color: "#cdd6f4"
-                        font.family: Config.main_font
+                        placeholderText: root.modelData?.inlineReplyPlaceholder || "Responder…"
+                        color: Theme.text
+                        font.family: Theme.font_display
                         font.pointSize: 9
-                        enabled: !!root.modelData.sourceNotification
+                        enabled: !!root.modelData?.sourceNotification
                         selectByMouse: true
                         leftPadding: 10
                         rightPadding: 10
@@ -655,9 +651,9 @@ SwipeDelegate {
 
                         background: Rectangle {
                             radius: 8
-                            color: "#181825"
+                            color: Theme.mantle
                             border.width: replyInput.activeFocus ? 1 : 0
-                            border.color: "#89b4fa"
+                            border.color: Theme.blue
                         }
 
                         function sendReply() {
@@ -678,14 +674,14 @@ SwipeDelegate {
                         width: 38
                         height: parent.height
                         radius: 8
-                        enabled: !!root.modelData.sourceNotification
+                        enabled: !!root.modelData?.sourceNotification
                         opacity: enabled ? 1 : 0.48
-                        color: enabled && sendReplyHover.hovered ? "#89b4fa" : "#313244"
+                        color: enabled && sendReplyHover.hovered ? Theme.blue : Theme.surface0
 
                         Text {
                             anchors.centerIn: parent
                             text: "➤"
-                            color: sendReplyHover.hovered ? "#11111b" : "#cdd6f4"
+                            color: sendReplyHover.hovered ? Theme.crust : Theme.text
                             font.pointSize: 11
                         }
 

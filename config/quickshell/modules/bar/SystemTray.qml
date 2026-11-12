@@ -39,16 +39,22 @@ Row {
                 id: mouse
                 anchors.fill: parent
                 hoverEnabled: true
-                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+
+                function openMenu(): void {
+                    if (!item.modelData.hasMenu)
+                        return
+                    const p = item.mapToItem(root.trayMenu, item.width / 2, item.height + 12)
+                    root.trayMenu.open(item.modelData.menu, p.x, p.y)
+                }
+
                 onClicked: (mouseEvent) => {
-                    if (mouseEvent.button === Qt.LeftButton) {
+                    if (mouseEvent.button === Qt.MiddleButton)
+                        item.modelData.secondaryActivate()
+                    else if (mouseEvent.button === Qt.RightButton || item.modelData.onlyMenu)
+                        openMenu()
+                    else
                         item.modelData.activate()
-                    } else {
-                        if (!item.modelData?.hasMenu) return;
-                        const centerX = root.width / 2
-                        const p = root.mapToItem(root.trayMenu, centerX, root.height)
-                        root.trayMenu.open(item.modelData?.menu, p.x, p.y)
-                    }
                 }
                 onEntered: {
                     const text = item.modelData.title !== ""

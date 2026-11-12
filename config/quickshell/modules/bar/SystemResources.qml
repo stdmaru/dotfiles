@@ -22,15 +22,15 @@ Row {
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 4
                 Label {
-                    font.family: "Font Awesome 7 Free"
+                    font.family: Theme.font_awesome
                     font.pixelSize: 16
-                    color: btn.active ? "#ffffff" : "#b1b1b5"
-                    text: ""
+                    color: btn.active ? Theme.white : Theme.barText
+                    text: "\uf2db"
                 }
 
                 Label {
                     font.pixelSize: btn.fontSize
-                    color: btn.active ? "#ffffff" : "#b1b1b5"
+                    color: btn.active ? Theme.white : Theme.barText
                     text: `${Number(root.cpuUsage * 100).toFixed(0)}%`
                 }
             }
@@ -40,15 +40,15 @@ Row {
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 4
                 Label {
-                    font.family: "Font Awesome 7 Free"
+                    font.family: Theme.font_awesome
                     font.pixelSize: 16
-                    color: btn.active ? "#ffffff" : "#b1b1b5"
-                    text: ""
+                    color: btn.active ? Theme.white : Theme.barText
+                    text: "\uf2c9"
                 }
 
                 Label {
                     font.pixelSize: btn.fontSize
-                    color: btn.active ? "#ffffff" : "#b1b1b5"
+                    color: btn.active ? Theme.white : Theme.barText
                     text: `${Number(root.cpuTemp).toFixed(0)}${Config.temperature_metric}`
                 }
             }
@@ -58,16 +58,16 @@ Row {
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 4
                 Label {
-                    font.family: "Font Awesome 7 Free"
+                    font.family: Theme.font_awesome
                     font.pixelSize: 16
-                    color: btn.active ? "#ffffff" : "#b1b1b5"
-                    text: ""
+                    color: btn.active ? Theme.white : Theme.barText
+                    text: "\uf538"
                 }
 
                 Label {
-                    font.family: Config.main_font
+                    font.family: Theme.font_display
                     font.pixelSize: btn.fontSize
-                    color: btn.active ? "#ffffff" : "#b1b1b5"
+                    color: btn.active ? Theme.white : Theme.barText
                     text: `${root.memUsed.value.toFixed(1)} ${root.memUsed.unit}`
                 }
             }
@@ -77,22 +77,22 @@ Row {
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 4
                 Label {
-                    font.family: "Font Awesome 7 Free"
+                    font.family: Theme.font_awesome
                     font.pixelSize: 16
-                    color: btn.active ? "#ffffff" : "#b1b1b5"
-                    text: ""
+                    color: btn.active ? Theme.white : Theme.barText
+                    text: "\uf2c9"
                 }
 
                 Label {
                     font.pixelSize: btn.fontSize
-                    color: btn.active ? "#ffffff" : "#b1b1b5"
+                    color: btn.active ? Theme.white : Theme.barText
                     text: `${Number(root.gpuTemp).toFixed(0)}${Config.temperature_metric}`
                 }
             }
         }
 
         onClicked: () => {
-            Quickshell.execDetached(["alacritty", "-e", "btop"])
+            Quickshell.execDetached([Config.terminal, "-e", "btop"])
         }
     }
 }

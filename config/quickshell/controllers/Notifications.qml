@@ -10,9 +10,14 @@ import qs.config
 Singleton {
     id: root
 
+    // Linhas { modelData: NotificationEntry }, da mais nova para a mais antiga.
     readonly property ListModel all: ListModel {}
     readonly property ListModel popups: ListModel {}
+    // Linhas { key, group: NotificationGroup } exibidas no painel.
     readonly property ListModel tray: ListModel {}
+    // Objetos removidos continuam vivos por este intervalo para que os
+    // delegates terminem suas animações de saída sem ler dados nulos.
+    readonly property int destroyDelayMs: 2000
 
     readonly property string userdataDir: Quickshell.shellDir + "/userdata"
     readonly property string cacheDir: userdataDir + "/.cache"
@@ -72,12 +77,8 @@ Singleton {
             preferencesSaveTimer.restart()
     }
 
-    component NotificationModel: Item {
+    component NotificationEntry: QtObject {
         id: notificationObject
-
-        width: 0
-        height: 0
-        visible: false
 
         property int id
         property string image
@@ -92,12 +93,10 @@ Singleton {
         property bool hasActionIcons
         property bool hasInlineReply
         property bool popupHovered: false
-        property bool trayExitRequested: false
-        property bool trayDismissPending: false
         property string inlineReplyPlaceholder
         property bool lastGeneration
-        // Keep action labels as value data so history remains intact even if
-        // the notification service later destroys its source objects.
+        // Os rótulos das ações ficam como dados simples para que o histórico
+        // continue íntegro mesmo depois que o serviço destruir a origem.
         property var actions: []
         property bool resident
         property var hints
@@ -109,12 +108,12 @@ Singleton {
             root.dismissNotification(this)
         }
 
-        Connections {
+        readonly property Connections sourceConnections: Connections {
             target: notificationObject.sourceNotification
 
             function onClosed(reason): void {
-                // The tray owns its history lifetime; source closure only
-                // disables actions that can no longer be sent to the app.
+                // O painel é dono do histórico; o fechamento da origem apenas
+                // desabilita ações que não podem mais ser enviadas ao app.
                 notificationObject.sourceNotification = null
             }
 
@@ -128,6 +127,20 @@ Singleton {
                 }
             }
         }
+    }
+
+    // Uma linha do painel: uma notificação comum ou várias mensagens do mesmo
+    // remetente. As propriedades mudam no lugar, preservando o delegate.
+    component NotificationGroup: QtObject {
+        property string key
+        property var notifications: []
+        readonly property var head: notifications.length > 0 ? notifications[0] : null
+        property string avatarSource
+        property string displayBody
+        // O cartão já iniciou a animação de saída por descarte do usuário.
+        property bool dismissPending: false
+        // "Limpar" pediu que todos os cartões saiam juntos.
+        property bool exitRequested: false
     }
 
     NotificationServer {
@@ -584,8 +597,8 @@ Singleton {
         const entries = []
         const byKey = new Map()
 
-        // Keep ordinary notifications as individual rows. Only merge message
-        // notifications from the same app, sender and conversation origin.
+        // Notificações comuns ficam em linhas individuais; só mensagens do
+        // mesmo app, remetente e conversa são agrupadas.
         for (let i = 0; i < all.count; ++i) {
             const notification = all.get(i).modelData
             const key = messageGroupKey(notification)
@@ -593,7 +606,6 @@ Singleton {
             if (!entry) {
                 entry = {
                     key: key || `notification:${notification.id}:${notification.createdAt}`,
-                    modelData: notification,
                     avatarSource: notification.image || "",
                     notifications: [],
                     bodyParts: []
@@ -609,16 +621,21 @@ Singleton {
                 entry.bodyParts.unshift(notification.body)
         }
 
-        // Synchronize rows by key instead of clearing/rebuilding the model.
-        // Stable delegates preserve the tray's ongoing expand/exit animations.
-        const nextKeys = entries.map(entry => entry.key)
+        // Sincroniza as linhas por chave em vez de reconstruir o modelo:
+        // delegates estáveis preservam as animações em andamento.
+        const nextKeys = new Set(entries.map(entry => entry.key))
         for (let row = tray.count - 1; row >= 0; --row) {
-            if (!nextKeys.includes(tray.get(row).key))
-                tray.remove(row)
+            const current = tray.get(row)
+            if (nextKeys.has(current.key))
+                continue
+            const group = current.group
+            tray.remove(row)
+            group.destroy(root.destroyDelayMs)
         }
 
         for (let target = 0; target < entries.length; ++target) {
             const entry = entries[target]
+            const displayBody = entry.bodyParts.join("\n")
             let row = -1
             for (let i = 0; i < tray.count; ++i) {
                 if (tray.get(i).key === entry.key) {
@@ -627,27 +644,26 @@ Singleton {
                 }
             }
 
-            const displayBody = entry.bodyParts.join("\n")
             if (row < 0) {
-                tray.insert(target, {
+                tray.insert(Math.min(target, tray.count), {
                     key: entry.key,
-                    modelData: entry.modelData,
-                    avatarSource: entry.avatarSource,
-                    displayBody: displayBody,
-                    groupedNotifications: entry.notifications
+                    group: groupComponent.createObject(root, {
+                        key: entry.key,
+                        notifications: entry.notifications,
+                        avatarSource: entry.avatarSource,
+                        displayBody: displayBody
+                    })
                 })
                 continue
             }
 
-            const current = tray.get(row)
-            if (current.modelData !== entry.modelData)
-                tray.setProperty(row, "modelData", entry.modelData)
-            if (current.avatarSource !== entry.avatarSource)
-                tray.setProperty(row, "avatarSource", entry.avatarSource)
-            if (current.displayBody !== displayBody)
-                tray.setProperty(row, "displayBody", displayBody)
-            if (!sameNotifications(current.groupedNotifications, entry.notifications))
-                tray.setProperty(row, "groupedNotifications", entry.notifications)
+            const group = tray.get(row).group
+            if (!sameNotifications(group.notifications, entry.notifications))
+                group.notifications = entry.notifications
+            if (group.avatarSource !== entry.avatarSource)
+                group.avatarSource = entry.avatarSource
+            if (group.displayBody !== displayBody)
+                group.displayBody = displayBody
             if (allowReorder && row !== target)
                 tray.move(row, target, 1)
         }
@@ -657,7 +673,7 @@ Singleton {
         if (!left || left.length !== right.length)
             return false
         for (let i = 0; i < right.length; ++i) {
-            if (left[i] !== right[i] && left[i]?.id !== right[i]?.id)
+            if (left[i] !== right[i])
                 return false
         }
         return true
@@ -679,41 +695,32 @@ Singleton {
         return true
     }
 
-    function removeNotification(notification, dismissRemote: bool): void {
+    // Tira a notificação dos modelos e agenda a destruição do objeto.
+    function detach(notification, dismissRemote: bool): bool {
         dismissPopup(notification)
 
         const index = indexOf(root.all, notification)
         if (index < 0)
-            return
+            return false
 
         root.all.remove(index)
         const source = notification.sourceNotification
+        notification.sourceNotification = null
         if (dismissRemote && source)
             source.dismiss()
-        notification.destroy()
-        root.refreshTray(false)
-        if (persistenceReady)
-            historySaveTimer.restart()
+        notification.destroy(root.destroyDelayMs)
+        return true
     }
 
     function dismissNotification(notification): void {
-        removeNotification(notification, true)
+        dismissNotificationGroup([notification])
     }
 
     function dismissNotificationGroup(notifications): void {
         let changed = false
-        for (const notification of notifications.slice()) {
-            const index = indexOf(root.all, notification)
-            if (index < 0)
-                continue
-
-            dismissPopup(notification)
-            root.all.remove(index)
-            const source = notification.sourceNotification
-            if (source)
-                source.dismiss()
-            notification.destroy()
-            changed = true
+        for (const notification of Array.from(notifications ?? [])) {
+            if (notification && detach(notification, true))
+                changed = true
         }
 
         if (changed) {
@@ -728,11 +735,10 @@ Singleton {
         if (all.count === 0)
             return
 
-        // Ask each visible tray card to animate out first. The history is
-        // removed only after those delegates have completed their exit.
-        for (let i = 0; i < all.count; ++i) {
-            all.get(i).modelData.trayExitRequested = true
-        }
+        // Pede que cada cartão visível anime a saída primeiro; o histórico só
+        // é removido depois que os delegates terminam.
+        for (let i = 0; i < tray.count; ++i)
+            tray.get(i).group.exitRequested = true
         clearAllTimer.restart()
     }
 
@@ -740,18 +746,23 @@ Singleton {
         const notifications = []
         for (let i = 0; i < all.count; ++i)
             notifications.push(all.get(i).modelData)
+        const groups = []
+        for (let i = 0; i < tray.count; ++i)
+            groups.push(tray.get(i).group)
 
-        // Clear the visible popup model and history, then dismiss the remote
-        // notifications so the server does not retain stale active entries.
+        // Limpa os modelos e dispensa as notificações remotas para que o
+        // servidor não mantenha entradas ativas obsoletas.
         popups.clear()
         all.clear()
         tray.clear()
+        for (const group of groups)
+            group.destroy(root.destroyDelayMs)
         for (const notification of notifications) {
             const source = notification.sourceNotification
             notification.sourceNotification = null
             if (source)
                 source.dismiss()
-            notification.destroy()
+            notification.destroy(root.destroyDelayMs)
         }
         if (persistenceReady)
             historySaveTimer.restart()
@@ -786,16 +797,7 @@ Singleton {
         return true
     }
 
-    function hasPopup(): bool {
-        return root.popups.count > 0
-    }
-
-    function hasUnread(): bool {
-        return root.all.count > 0
-    }
-
     function init(): void {
-        console.info("Notification daemon started")
         if (persistenceStarted)
             return
         persistenceStarted = true
@@ -804,6 +806,11 @@ Singleton {
 
     Component {
         id: notificationModel
-        NotificationModel {}
+        NotificationEntry {}
+    }
+
+    Component {
+        id: groupComponent
+        NotificationGroup {}
     }
 }

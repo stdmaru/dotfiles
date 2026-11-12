@@ -7,6 +7,6 @@ Text {
     verticalAlignment: Text.AlignVCenter
     horizontalAlignment: Text.AlignHCenter
     text: ""
-    font.family: Config.main_font
+    font.family: Theme.font_display
     font.weight: Font.Bold
 }
