@@ -1,96 +1,96 @@
 //@ pragma IconTheme AdwaitaLegacy
+// O text-input-v3 do Qt perde o rastro da superfície focada sempre que uma
+// janela com campo de texto some, e passa a avisar em todo enable/disable.
+// Sem método de entrada (fcitx/ibus) ele não serve para nada; o módulo
+// "compose" mantém as teclas mortas (´ + a = á) via xkb.
+//@ pragma Env QT_IM_MODULE=compose
 
 pragma ComponentBehavior: Bound
 
+import qs.config
 import qs.controllers
-import qs.components.topbar.notifications
-import qs.components.topbar
+import qs.modules.dialogs
+import qs.modules.launcher
+import qs.modules.lock
+import qs.modules.screen
+import qs.modules.settings
 import Quickshell
-import Quickshell.Wayland
+import Quickshell.Io
 import QtQuick
 
+// Ponto de entrada: apenas compõe os módulos. O estado vive nos singletons de
+// controllers/ e cada módulo desenha a sua parte.
 ShellRoot {
-  Scope {
-    id: scope
+  // Barra, popups e painel (monitor principal) e moldura (todos).
+  Variants {
+    model: Quickshell.screens
+    ScreenWindow {}
+  }
 
-    Variants {
-      model: Quickshell.screens
+  Variants {
+    model: Quickshell.screens
 
-      // Main screen
-      delegate: PanelWindow {
-        required property ShellScreen modelData
-        id: shellWindow
-
-        screen: modelData
-        visible: true
-        color: "transparent"
-        anchors {
-          top: true
-          bottom: true
-          left: true
-          right: true
-        }
-        
-        WlrLayershell.exclusionMode: ExclusionMode.Ignore
-        //WlrLayershell.layer: WlrLayer.Overlay
-
-        mask: Region {
-          x: 0
-          y: 0
-          width: shellWindow.width
-          height: shellWindow.height
-          intersection: Intersection.Xor
-          regions: regions.instances
-        }
-
-        // Topbar exclusive zone
-        ExclusionZone {
-          anchors { top: true }
-          exclusiveZone: topbar.implicitHeight
-        }
-
-        // List of clickable regions
-        Variants {
-          id: regions
-          model: widgets.children
-
-          Region {
-            required property Item modelData
-
-            x: modelData.x
-            y: modelData.y
-            width: modelData.width
-            height: (modelData.visible) ? modelData.height : 0
-            intersection: Intersection.Subtract
-          }
-        }
-
-        // List of widgets
-        Item {
-          id: widgets
-          anchors.fill: parent
-          
-          Topbar { id: topbar; parentWindow: shellWindow; trayMenu: trayMenu}
-          NotificationPopups { id: notificationDrawer; attachedTo: topbar }
-          NotificationTray { id: notificationTray; attachedBar: topbar }
-          TrayMenu { id: trayMenu; parentWindow: shellWindow; }
-        }
-      }
-
-      component ExclusionZone: PanelWindow {
-        screen: this.screen
-        exclusiveZone: 0
-        mask: Region {}
-        implicitWidth: 1
-        implicitHeight: 1
-        WlrLayershell.namespace: `shell-exclusive-area`
-      }
+    AppLauncher {
+      required property ShellScreen modelData
+      targetScreen: modelData
     }
   }
 
-  Component.onCompleted: () => {
+  // Estado de diálogo único, com um escudo de entrada em cada monitor.
+  Variants {
+    model: Quickshell.screens
+
+    DialogBox {
+      required property ShellScreen modelData
+      targetScreen: modelData
+    }
+  }
+
+  // Dica dos controles da barra, acima dos painéis.
+  TooltipLayer {}
+
+  Lock {}
+
+  // Janela de configurações; só existe enquanto está aberta.
+  LazyLoader {
+    active: Settings.open
+    SettingsWindow {}
+  }
+
+  // quickshell ipc call <target> <função>
+  IpcHandler {
+    target: "launcher"
+    function toggle(): void { Launcher.toggle() }
+    function close(): void { Launcher.close() }
+  }
+
+  IpcHandler {
+    target: "notifications"
+    function toggle(): void {
+      if (!Session.locked)
+        Notifications.trayOpen = !Notifications.trayOpen
+    }
+    function clear(): void { Notifications.clearAll() }
+    function toggleDnd(): void { Preferences.notifications.doNotDisturb = !Preferences.notifications.doNotDisturb }
+  }
+
+  IpcHandler {
+    target: "settings"
+    function toggle(): void { Settings.toggle() }
+    function open(category: string): void { Settings.show(category) }
+    function close(): void { Settings.close() }
+  }
+
+  IpcHandler {
+    target: "session"
+    function lock(): void { Session.lock() }
+    function suspend(): void { Session.suspend() }
+  }
+
+  Component.onCompleted: {
     Hypr.init()
     Weather.init()
+    Network.init()
     Notifications.init()
   }
 }

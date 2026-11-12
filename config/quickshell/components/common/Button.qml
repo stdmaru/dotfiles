@@ -1,7 +1,7 @@
 import qs.config
+import qs.controllers
 import QtQuick
 import QtQuick.Controls
-import Quickshell.Widgets
 
 Button {
     id: root
@@ -18,9 +18,9 @@ Button {
     rightPadding: 10
 
     background: Rectangle {
-        radius: 3
-        color: (root.down || root.active) ? "#58585f" :
-               root.hovered ? "#35353d" :
+        radius: Config.bar_button_radius
+        color: (root.down || root.active) ? Theme.surface1 :
+               root.hovered ? Theme.surface0 :
                "transparent"
 
         Behavior on color {
@@ -34,12 +34,17 @@ Button {
     contentItem: Row {
         spacing: 10
 
-        IconImage {
+        Image {
             anchors.verticalCenter: parent.verticalCenter
             visible: root.iconSource !== ""
             source: root.iconSource
-            implicitSize: root.iconSize
-            //smooth: true
+            width: root.iconSize
+            height: root.iconSize
+            sourceSize: Qt.size(root.iconSize * 2, root.iconSize * 2)
+            fillMode: Image.PreserveAspectFit
+            smooth: true
+            mipmap: true
+            asynchronous: true
         }
         
         // Default label shown when `text` property is used.
@@ -48,28 +53,20 @@ Button {
             anchors.verticalCenter: parent.verticalCenter
             text: root.text
             visible: root.text !== "" && root.text !== undefined
-            font.family: Config.main_font
+            font.family: Theme.font_display
             font.pixelSize: root.fontSize
             font.weight: Font.Bold
-            color: root.active ? "#ffffff" : "#b1b1b5"
+            color: root.active ? Theme.white : Theme.barText
             verticalAlignment: Text.AlignVCenter
             horizontalAlignment: Text.AlignHCenter
         }
     }
 
-    Tooltip {
-        id: tooltip
-        text: root.tooltip
-    }
-
     onHoveredChanged: {
-        if (!tooltip.text || tooltip.text === "")
-            return;
-
-        if (hovered) {
-            tooltip.showFor(root);
+        if (hovered && root.tooltip) {
+            TooltipManager.show(root, root.tooltip);
         } else {
-            tooltip.hide();
+            TooltipManager.hide(root);
         }
     }
 }

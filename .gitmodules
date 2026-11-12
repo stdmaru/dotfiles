@@ -1,7 +1,3 @@
-[submodule "eww/src"]
-	path = eww/src
-	url = https://github.com/elkowar/eww.git
-
 [submodule "config/zsh/plugins/zsh-autosuggestions"]
 	path = config/zsh/plugins/zsh-autosuggestions
 	url = https://github.com/zsh-users/zsh-autosuggestions.git

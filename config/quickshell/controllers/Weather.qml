@@ -5,11 +5,14 @@ import Quickshell
 import Quickshell.Io
 import QtQuick
 
+// Clima via OpenWeatherMap, com cache em disco para respeitar a cota da API.
+// Configuração por variáveis de ambiente: _SHELL_WEATHER_API_KEY,
+// _SHELL_WEATHER_LOCATION e _SHELL_WEATHER_LANG.
 Singleton {
     id: root
 
     property bool hasData: false
-    property string glyph: ""
+    property string glyph: "\ue226"
     property double tempCurrent: 0
     property double tempMin: 0
     property double tempMax: 0
@@ -18,367 +21,317 @@ Singleton {
     property string region: ""
     property string state: ""
     property string country: ""
+    property var forecast: []
 
-    readonly property int forecastIntervalMin: 6 * 60     // Forecast reload interval in 6h
-    readonly property int conditionIntervalMin: 60        // Condition reload interval in 1h
-    readonly property string cacheDir: Quickshell.workingDirectory + "/userdata/.cache/weather"
-    readonly property string apiKey: Quickshell.env("_SHELL_WEATHER_API_KEY")
-    readonly property string location: Quickshell.env("_SHELL_WEATHER_LOCATION")
-    readonly property string language: Quickshell.env("_SHELL_WEATHER_LANG")
-    readonly property FileView locationFile: FileView { path: Qt.resolvedUrl(root.cacheDir + "/location.json"); blockLoading: true; printErrors: false; }
-    readonly property FileView currentFile: FileView { path: Qt.resolvedUrl(root.cacheDir + "/current.json"); blockLoading: true; printErrors: false; }
-    readonly property FileView forecastFile: FileView { path: Qt.resolvedUrl(root.cacheDir + "/forecast.json"); blockLoading: true; printErrors: false; }
-    readonly property var timer: Timer { interval: 10 * 60 * 1000; running: true; repeat: true; onTriggered: root.refreshWeather() }
+    readonly property int forecastIntervalMin: 6 * 60     // Previsão: a cada 6h
+    readonly property int conditionIntervalMin: 60        // Condição atual: a cada 1h
+    readonly property string cacheDir: Quickshell.shellDir + "/userdata/.cache/weather"
+    readonly property string apiKey: Quickshell.env("_SHELL_WEATHER_API_KEY") ?? ""
+    readonly property string location: Quickshell.env("_SHELL_WEATHER_LOCATION") ?? ""
+    readonly property string language: (Quickshell.env("_SHELL_WEATHER_LANG") || "pt_br").toLowerCase()
+    readonly property bool configured: apiKey !== "" && location !== ""
+    readonly property string apiBase: "https://api.openweathermap.org"
+
+    property bool started: false
+    property bool refreshing: false
+    property var _location: null
+    property var _current: null
+    property var _forecast: null
+
+    FileView { id: locationFile; path: root.cacheDir + "/location.json"; blockLoading: true; printErrors: false }
+    FileView { id: currentFile; path: root.cacheDir + "/current.json"; blockLoading: true; printErrors: false }
+    FileView { id: forecastFile; path: root.cacheDir + "/forecast.json"; blockLoading: true; printErrors: false }
+
+    Process {
+        id: prepareCache
+        command: ["mkdir", "-p", "--", root.cacheDir]
+        onExited: root.refreshWeather()
+    }
+
+    Timer {
+        interval: 10 * 60 * 1000
+        running: root.started && root.configured
+        repeat: true
+        onTriggered: root.refreshWeather()
+    }
 
     function init(): void {
-        console.info("Weather daemon started")
-        root.refreshWeather()
+        if (root.started)
+            return
+        root.started = true
+
+        if (!root.configured) {
+            console.warn("Weather disabled: set _SHELL_WEATHER_API_KEY and _SHELL_WEATHER_LOCATION")
+            return
+        }
+        prepareCache.running = true
     }
 
     function refreshWeather(): void {
+        if (!root.configured || root.refreshing)
+            return
+        root.refreshing = true
+        loadLocation()
+    }
+
+    function readCache(file): var {
         try {
-            var data = getWeather()
-            if (data.current) {
-                root.glyph = data.current.glyph ?? "?"
-                root.tempCurrent = Math.round(data.current.main?.temp ?? data.current.main?.temp ?? 9999)
-                root.tempMin = Math.round(data.forecast[0]?.min ?? data.forecast[0]?.min ?? 0)
-                root.tempMax = Math.round(data.forecast[0]?.max ?? data.forecast[0]?.max ?? 0)
-                root.tempFeelsLike = Math.round(data.current.main.feels_like ?? data.current.main.feels_like ?? 0)
-                root.description = data.current.weather?.[0]?.description ?? ""
-                root.region = data.location.name ?? ""
-                root.state = data.location.state ?? ""
-                root.country = data.location.country ?? ""
-
-                root.hasData = true;
-                console.info(`Weather data refreshed successfully`)
-            }
-        } catch(e) {
-            console.warn("Failed to parse weather JSON:", e)
+            const data = JSON.parse(file.text())
+            return data && typeof data === "object" ? data : {}
+        } catch (e) {
+            return {}
         }
     }
 
-    function ensureFilesExists() {
-        Quickshell.execDetached(["mkdir", "-p", cacheDir])
-        Quickshell.execDetached(["touch", cacheDir + "/location.json"])
-        Quickshell.execDetached(["touch", cacheDir + "/current.json"])
-        Quickshell.execDetached(["touch", cacheDir + "/forecast.json"])
+    function isFresh(cache, maxAgeMin): bool {
+        return cache.cod == 200
+            && !!cache.lastUpdate
+            && Date.now() <= cache.lastUpdate + maxAgeMin * 60 * 1000
+            && cache.lastLocation?.name === root._location?.name
     }
 
-    function getWeather(): var {
-        ensureFilesExists()
+    function openInBrowser(): void {
+        const query = ["weather", root.region, root.state, root.country]
+            .filter(part => part).join(" ")
+        Quickshell.execDetached(["xdg-open",
+            `https://www.google.com/search?q=${encodeURIComponent(query)}`])
+    }
 
-        const weather = {};
-        weather.location = root.loadLocation();
-        weather.current = root.loadCurrent(weather.location);
-        const rawForecast = root.loadForecast(weather.location);
-        
-        // Add Glyphs
-        weather.current.glyph = root.getGlyph(weather.current.weather[0].icon);
+    function buildWeather(location, current, forecast): var {
+        const weather = {}
 
-        // Build a 5-day forecast array with min/max per day (include today)
-        // Use timezone from forecast response or from saved location, fallback to -3
-        let tzOffset = -3 * 3600;
-        if (rawForecast && rawForecast.city && typeof rawForecast.city.timezone === 'number') {
-            tzOffset = rawForecast.city.timezone;
-            // Save timezone to location for future reference
-            if (weather.location) {
-                weather.location.timezone = tzOffset;
-                root.locationFile.setText(JSON.stringify(weather.location))
-            }
-        } else if (weather.location && typeof weather.location.timezone === 'number') {
-            tzOffset = weather.location.timezone;
-        }
+        weather.location = location
+        weather.current = current
+        weather.forecast = []
 
-        const dailyMap = new Map();
-        if (rawForecast && Array.isArray(rawForecast.list)) {
-            for (const entry of rawForecast.list) {
-                const localDate = new Date((entry.dt + tzOffset) * 1000);
-                const y = localDate.getUTCFullYear();
-                const m = String(localDate.getUTCMonth() + 1).padStart(2, '0');
-                const d = String(localDate.getUTCDate()).padStart(2, '0');
-                const dateKey = `${y}-${m}-${d}`;
-                const hour = localDate.getUTCHours();
+        if (!current || !current.weather || !current.weather[0])
+            return weather
 
-                const tempMin = (entry.main && typeof entry.main.temp_min === 'number') ? entry.main.temp_min : (entry.main && typeof entry.main.temp === 'number' ? entry.main.temp : null);
-                const tempMax = (entry.main && typeof entry.main.temp_max === 'number') ? entry.main.temp_max : (entry.main && typeof entry.main.temp === 'number' ? entry.main.temp : null);
-                const feelsLike = (entry.main && typeof entry.main.feels_like === 'number') ? entry.main.feels_like : null;
-                const humidity = (entry.main && typeof entry.main.humidity === 'number') ? entry.main.humidity : null;
-                const pressure = (entry.main && typeof entry.main.pressure === 'number') ? entry.main.pressure : null;
-                const seaLevel = (entry.main && typeof entry.main.sea_level === 'number') ? entry.main.sea_level : null;
-                const wind = (entry.wind && typeof entry.wind.speed === 'number') ? { speed: entry.wind.speed, gust: entry.wind.gust || null, deg: entry.wind.deg || null } : null;
-                const clouds = (entry.clouds && typeof entry.clouds.all === 'number') ? entry.clouds.all : null;
-                const visibility = (typeof entry.visibility === 'number') ? entry.visibility : null;
-                const rain = (entry.rain && typeof entry.rain['3h'] === 'number') ? entry.rain['3h'] : null;
-                const snow = (entry.snow && typeof entry.snow['3h'] === 'number') ? entry.snow['3h'] : null;
-                const currentIcon = (entry.weather && entry.weather[0] && entry.weather[0].icon) ? entry.weather[0].icon : null;
-                const description = (entry.weather && entry.weather[0] && entry.weather[0].description) ? entry.weather[0].description : null;
+        // Glyph
+        weather.current.glyph = root.getGlyph(current.weather[0].icon)
+
+        // Timezone
+        let tzOffset = -3 * 3600
+        if (forecast?.city?.timezone !== undefined)
+            tzOffset = forecast.city.timezone
+        else if (location?.timezone !== undefined)
+            tzOffset = location.timezone
+
+        // ---- Agrupa as entradas de 3h em dias (no fuso da cidade)
+        const dailyMap = new Map()
+
+        if (forecast && Array.isArray(forecast.list)) {
+            for (const entry of forecast.list) {
+                const localDate = new Date((entry.dt + tzOffset) * 1000)
+                const y = localDate.getUTCFullYear()
+                const m = String(localDate.getUTCMonth() + 1).padStart(2, '0')
+                const d = String(localDate.getUTCDate()).padStart(2, '0')
+                const dateKey = `${y}-${m}-${d}`
+                const hour = localDate.getUTCHours()
 
                 if (!dailyMap.has(dateKey)) {
                     dailyMap.set(dateKey, {
-                        date: dateKey,
-                        min: tempMin,
-                        max: tempMax,
-                        feelsLike: feelsLike ? [feelsLike] : [],
-                        humidity: humidity !== null ? [humidity] : [],
-                        pressure: pressure !== null ? [pressure] : [],
-                        seaLevel: seaLevel !== null ? [seaLevel] : [],
-                        wind: wind ? [wind] : [],
-                        clouds: clouds !== null ? [clouds] : [],
-                        visibility: visibility !== null ? [visibility] : [],
-                        rain: rain !== null ? rain : 0,
-                        snow: snow !== null ? snow : 0,
-                        icon: currentIcon,
-                        description: description,
-                        dayNameShort: localDate.toLocaleDateString('pt-br', { weekday: 'short', timeZone: 'UTC' })
-                    });
+                        min: entry.main?.temp_min ?? entry.main?.temp ?? null,
+                        max: entry.main?.temp_max ?? entry.main?.temp ?? null,
+                        icon: entry.weather?.[0]?.icon ?? null,
+                        description: entry.weather?.[0]?.description ?? null,
+                        dayNameShort: localDate.toLocaleDateString(
+                            'pt-br',
+                            { weekday: 'short', timeZone: 'UTC' }
+                        )
+                    })
                 } else {
-                    const cur = dailyMap.get(dateKey);
-                    if (tempMin !== null && (cur.min === null || tempMin < cur.min)) cur.min = tempMin;
-                    if (tempMax !== null && (cur.max === null || tempMax > cur.max)) cur.max = tempMax;
-                    if (feelsLike !== null) cur.feelsLike.push(feelsLike);
-                    if (humidity !== null) cur.humidity.push(humidity);
-                    if (pressure !== null) cur.pressure.push(pressure);
-                    if (seaLevel !== null) cur.seaLevel.push(seaLevel);
-                    if (wind !== null) cur.wind.push(wind);
-                    if (clouds !== null) cur.clouds.push(clouds);
-                    if (visibility !== null) cur.visibility.push(visibility);
-                    if (rain !== null) cur.rain += rain;
-                    if (snow !== null) cur.snow += snow;
-                    if (currentIcon && cur.icon === null) cur.icon = currentIcon;
-                    if (description && cur.description === null) cur.description = description;
-                    if (hour === 12 && currentIcon) {
-                        cur.icon = currentIcon;
-                        if (description) cur.description = description;
+                    const cur = dailyMap.get(dateKey)
+                    cur.min = Math.min(cur.min, entry.main?.temp_min ?? cur.min)
+                    cur.max = Math.max(cur.max, entry.main?.temp_max ?? cur.max)
+
+                    if (hour === 12 && entry.weather?.[0]?.icon) {
+                        cur.icon = entry.weather[0].icon
+                        cur.description = entry.weather[0].description
                     }
                 }
             }
         }
 
-        // Build ordered array starting from local today and include next 4 days
-        const startLocal = new Date(Date.now() + tzOffset * 1000);
-        const baseYear = startLocal.getUTCFullYear();
-        const baseMonth = startLocal.getUTCMonth();
-        const baseDate = startLocal.getUTCDate();
+        // ---- Build ordered array (today + 4)
+        const startLocal = new Date(Date.now() + tzOffset * 1000)
+        const baseY = startLocal.getUTCFullYear()
+        const baseM = startLocal.getUTCMonth()
+        const baseD = startLocal.getUTCDate()
 
-        const dailyArray = [];
         for (let i = 0; i < 5; i++) {
-            const dt = new Date(Date.UTC(baseYear, baseMonth, baseDate + i));
-            const y = dt.getUTCFullYear();
-            const m = String(dt.getUTCMonth() + 1).padStart(2, '0');
-            const d = String(dt.getUTCDate()).padStart(2, '0');
-            const key = `${y}-${m}-${d}`;
-            const found = dailyMap.get(key);
-            if (found) {
-                // round to 1 decimal
-                const min = (typeof found.min === 'number') ? Math.round(found.min * 10) / 10 : null;
-                const max = (typeof found.max === 'number') ? Math.round(found.max * 10) / 10 : null;
-                const glyph = root.getGlyph(found.icon);
-                
-                // Calculate averages for aggregated fields
-                const avgFeelsLike = found.feelsLike.length > 0 ? Math.round(found.feelsLike.reduce((a,b) => a+b, 0) / found.feelsLike.length * 10) / 10 : null;
-                const avgHumidity = found.humidity.length > 0 ? Math.round(found.humidity.reduce((a,b) => a+b, 0) / found.humidity.length) : null;
-                const avgPressure = found.pressure.length > 0 ? Math.round(found.pressure.reduce((a,b) => a+b, 0) / found.pressure.length) : null;
-                const avgSeaLevel = found.seaLevel.length > 0 ? Math.round(found.seaLevel.reduce((a,b) => a+b, 0) / found.seaLevel.length) : null;
-                const avgClouds = found.clouds.length > 0 ? Math.round(found.clouds.reduce((a,b) => a+b, 0) / found.clouds.length) : null;
-                const avgVisibility = found.visibility.length > 0 ? Math.round(found.visibility.reduce((a,b) => a+b, 0) / found.visibility.length) : null;
-                
-                // Get wind info from noon entry or last available
-                const windInfo = found.wind.length > 0 ? found.wind[found.wind.length - 1] : null;
-                
-                dailyArray.push({ 
-                    date: key, 
-                    dayNameShort: found.dayNameShort, 
-                    min, 
-                    max, 
-                    feelsLike: avgFeelsLike,
-                    humidity: avgHumidity,
-                    pressure: avgPressure,
-                    seaLevel: avgSeaLevel,
-                    wind: windInfo,
-                    clouds: avgClouds,
-                    visibility: avgVisibility,
-                    rain: Math.round(found.rain * 100) / 100,
-                    snow: Math.round(found.snow * 100) / 100,
-                    icon: found.icon,
-                    description: found.description,
-                    glyph 
-                });
-            } else {
-                const dayNameShort = dt.toLocaleDateString('pt-br', { weekday: 'short', timeZone: 'UTC' });
+            const dt = new Date(Date.UTC(baseY, baseM, baseD + i))
+            const key =
+                `${dt.getUTCFullYear()}-` +
+                `${String(dt.getUTCMonth() + 1).padStart(2, '0')}-` +
+                `${String(dt.getUTCDate()).padStart(2, '0')}`
 
-                if (i === 0 && weather.current) {
-                    const cur = weather.current;
-                    const curMain = cur.main || {};
-                    const minCur = (typeof curMain.temp_min === 'number') ? curMain.temp_min : (typeof curMain.temp === 'number' ? curMain.temp : null);
-                    const maxCur = (typeof curMain.temp_max === 'number') ? curMain.temp_max : (typeof curMain.temp === 'number' ? curMain.temp : null);
-                    const feels = (typeof curMain.feels_like === 'number') ? Math.round(curMain.feels_like * 10) / 10 : null;
-                    const hum = (typeof curMain.humidity === 'number') ? curMain.humidity : null;
-                    const pres = (typeof curMain.pressure === 'number') ? curMain.pressure : null;
-                    const sea = (typeof curMain.sea_level === 'number') ? curMain.sea_level : null;
-                    const wind = (cur.wind && typeof cur.wind.speed === 'number') ? { speed: cur.wind.speed, gust: cur.wind.gust || null, deg: cur.wind.deg || null } : null;
-                    const clouds = (cur.clouds && typeof cur.clouds.all === 'number') ? cur.clouds.all : null;
-                    const visibility = (typeof cur.visibility === 'number') ? cur.visibility : null;
-                    const rain = (cur.rain && (cur.rain['1h'] || cur.rain['3h'])) ? (cur.rain['1h'] || cur.rain['3h']) : 0;
-                    const snow = (cur.snow && (cur.snow['1h'] || cur.snow['3h'])) ? (cur.snow['1h'] || cur.snow['3h']) : 0;
-                    const icon = (cur.weather && cur.weather[0] && cur.weather[0].icon) ? cur.weather[0].icon : null;
-                    const description = (cur.weather && cur.weather[0] && cur.weather[0].description) ? cur.weather[0].description : null;
-                    const glyphCur = root.getGlyph(icon);
-
-                    dailyArray.push({ 
-                        date: key,
-                        dayNameShort,
-                        min: (typeof minCur === 'number') ? Math.round(minCur * 10) / 10 : null,
-                        max: (typeof maxCur === 'number') ? Math.round(maxCur * 10) / 10 : null,
-                        feelsLike: feels,
-                        humidity: hum,
-                        pressure: pres,
-                        seaLevel: sea,
-                        wind: wind,
-                        clouds: clouds,
-                        visibility: visibility,
-                        rain: Math.round(rain * 100) / 100,
-                        snow: Math.round(snow * 100) / 100,
-                        icon: icon,
-                        description: description,
-                        glyph: glyphCur
-                    });
-                } else {
-                    dailyArray.push({ 
-                        date: key, 
-                        dayNameShort, 
-                        min: null, 
-                        max: null, 
-                        feelsLike: null,
-                        humidity: null,
-                        pressure: null,
-                        seaLevel: null,
-                        wind: null,
-                        clouds: null,
-                        visibility: null,
-                        rain: 0,
-                        snow: 0,
-                        icon: null,
-                        description: null,
-                        glyph: '?' 
-                    });
-                }
+            const day = dailyMap.get(key)
+            if (day) {
+                weather.forecast.push({
+                    date: key,
+                    dayNameShort: day.dayNameShort,
+                    min: Math.round(day.min),
+                    max: Math.round(day.max),
+                    icon: day.icon,
+                    description: day.description,
+                    glyph: root.getGlyph(day.icon)
+                })
             }
         }
-
-        weather.forecast = dailyArray;
 
         return weather
     }
 
-    function loadLocation(reFetch = false): var {
-        try {
-            var loc = JSON.parse(root.locationFile.text())
-        } catch(e) {
-            var loc = JSON.parse("{}")
+    function applyWeather(weather: var): void {
+        if (!weather?.current || !weather?.location)
+            return
+
+        root.glyph = weather.current.glyph ?? "?"
+        root.tempCurrent = Math.round(weather.current.main?.temp ?? 0)
+        root.tempFeelsLike = Math.round(weather.current.main?.feels_like ?? 0)
+
+        if (weather.forecast && weather.forecast[0]) {
+            root.tempMin = Math.round(weather.forecast[0].min ?? 0)
+            root.tempMax = Math.round(weather.forecast[0].max ?? 0)
         }
 
-        const onSuccess = (response) => {
-            loc = response[0];
-            loc.lastSearchQuery = root.location;
-            root.locationFile.setText(JSON.stringify(loc))
-        }
+        root.description = weather.current.weather?.[0]?.description ?? ""
+        root.region = weather.location.name ?? ""
+        root.state = weather.location.state ?? ""
+        root.country = weather.location.country ?? ""
+        root.forecast = weather.forecast ?? []
 
-        if(!loc.name || reFetch || loc.lastSearchQuery !== root.location) {
-            const callUrl = `http://api.openweathermap.org/geo/1.0/direct?q=${root.location}&limit=1&appid=${root.apiKey}`;
-            const request = Utils.fetch({method: "GET", url: callUrl, body: null, success: onSuccess, error: null});
-        }
-
-        return loc
+        root.hasData = true
     }
 
-    function loadCurrent(location: var): var {
-        try {
-            var cur = JSON.parse(root.currentFile.text())
-        } catch(e) {
-            var cur = JSON.parse("{}")
+    function loadLocation(): void {
+        const cached = readCache(locationFile)
+        if (cached.name && cached.lastSearchQuery === root.location) {
+            root._location = cached
+            loadCurrent()
+            return
         }
 
-        if(cur.lastLocation && cur.lastLocation.name !== location.name) {
-            const newLocation = root.loadLocation(true);
-            location = newLocation;
-        }
-
-        const onSuccess = (response) => {
-            cur = response;
-
-            const updateCount = cur.updateCount ++ || 1
-
-            cur.lastUpdate = Date.now();
-            cur.updateCount = updateCount;
-            cur.lastLocation = location;
-            root.currentFile.setText(JSON.stringify(cur))
-        }
-
-        if ( cur.cod != "200" || (cur.lastLocation.name !== location.name || Date.now() > new Date(cur.lastUpdate).getTime() + root.conditionIntervalMin * 60 * 1000)) {
-            const updateCount = cur.updateCount ++ || 1
-            const callUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${location.lat}&lon=${location.lon}&appid=${root.apiKey}&lang=${root.language}&units=metric`;
-            const request = Utils.fetch({method: "GET", url: callUrl, body: null, success: onSuccess, error: null});
-        }
-
-        return cur;
+        Utils.fetch({
+            url: `${root.apiBase}/geo/1.0/direct`
+                + `?q=${encodeURIComponent(root.location)}&limit=1&appid=${root.apiKey}`,
+            success: response => {
+                const found = Array.isArray(response) ? response[0] : null
+                if (!found) {
+                    console.warn(`Weather location not found: ${root.location}`)
+                    root.refreshing = false
+                    return
+                }
+                found.lastSearchQuery = root.location
+                locationFile.setText(JSON.stringify(found))
+                root._location = found
+                loadCurrent()
+            },
+            error: (response, status) => {
+                console.warn(`Failed to load weather location (HTTP ${status})`)
+                // Sem rede: reaproveita a última localização conhecida.
+                if (cached.name) {
+                    root._location = cached
+                    loadCurrent()
+                } else {
+                    root.refreshing = false
+                }
+            }
+        })
     }
 
-    function loadForecast(location: var): var {
-        try {
-            var frc = JSON.parse(root.forecastFile.text())
-        } catch(e) {
-            var frc = JSON.parse("{}")
+    function coordinatesQuery(): string {
+        return `?lat=${root._location.lat}&lon=${root._location.lon}`
+            + `&appid=${root.apiKey}&lang=${root.language}&units=metric`
+    }
+
+    function loadCurrent(): void {
+        const cached = readCache(currentFile)
+        if (isFresh(cached, root.conditionIntervalMin)) {
+            root._current = cached
+            loadForecast()
+            return
         }
 
-        if(frc.lastLocation && frc.lastLocation.name !== location.name) {
-            const newLocation = root.loadLocation(true);
-            location = newLocation;
+        Utils.fetch({
+            url: `${root.apiBase}/data/2.5/weather${coordinatesQuery()}`,
+            success: response => {
+                response.lastUpdate = Date.now()
+                response.lastLocation = root._location
+                currentFile.setText(JSON.stringify(response))
+                root._current = response
+                loadForecast()
+            },
+            error: (response, status) => {
+                console.warn(`Failed to load current weather (HTTP ${status})`)
+                // Dados antigos são melhores do que nenhum dado.
+                root._current = cached.weather ? cached : root._current
+                loadForecast()
+            }
+        })
+    }
+
+    function loadForecast(): void {
+        const cached = readCache(forecastFile)
+        if (isFresh(cached, root.forecastIntervalMin)) {
+            root._forecast = cached
+            finalizeWeather()
+            return
         }
-        
-        const onSuccess = (response) => {
-            frc = response;
 
-            const updateCount = frc.updateCount++ || 1
+        Utils.fetch({
+            url: `${root.apiBase}/data/2.5/forecast${coordinatesQuery()}`,
+            success: response => {
+                response.lastUpdate = Date.now()
+                response.lastLocation = root._location
+                forecastFile.setText(JSON.stringify(response))
+                root._forecast = response
+                finalizeWeather()
+            },
+            error: (response, status) => {
+                console.warn(`Failed to load weather forecast (HTTP ${status})`)
+                root._forecast = cached.list ? cached : root._forecast
+                finalizeWeather()
+            }
+        })
+    }
 
-            frc.lastUpdate = Date.now();
-            frc.updateCount = updateCount;
-            frc.lastLocation = location;
-
-            root.forecastFile.setText(JSON.stringify(frc))
-        }
-
-        if ( frc.cod != "200" || (frc.lastLocation.name !== location.name || Date.now() > new Date(frc.lastUpdate).getTime() + forecastIntervalMin * 60 * 1000 )) {
-            const updateCount = frc.updateCount ++ || 1
-            const callUrl = `http://api.openweathermap.org/data/2.5/forecast?lat=${location.lat}&lon=${location.lon}&appid=${apiKey}&lang=${language}&units=metric`;
-            const request = Utils.fetch({method: "GET", url: callUrl, body: null, success: onSuccess, error: null});
-        }
-
-        return frc;
+    function finalizeWeather(): void {
+        root.refreshing = false
+        if (!root._current)
+            return
+        applyWeather(buildWeather(root._location, root._current, root._forecast))
     }
 
     function getGlyph(icon): string {
         switch(icon)
         {
-            case "01d": return ""; // clear sky
-            case "01n": return ""; 
-            case "02d": return ""; // few clouds
-            case "02n": return "";
-            case "03d": return ""; // scattered clouds
-            case "03n": return "";
-            case "04d": return ""; // broken clouds
-            case "04n": return "";
-            case "09d": return ""; // shower rain
-            case "09n": return "";
-            case "10d": return ""; // rain
-            case "10n": return "";
-            case "11d": return ""; // thunderstorm
-            case "11n": return "";
-            case "13d": return ""; // snow
-            case "13n": return "";
-            case "50d": return ""; // mist 
-            case "50n": return "";
+            case "01d": return "\uf185"; // Sun
+            case "01n": return "\uf186"; // Moon
+
+            case "02d": return "\ueef0"; // Few clouds
+            case "02n": return "\ueeef"; // -- Small cloud with sun/moon
+
+            case "03d": return "\ue21d"; // Scattered clouds
+            case "03n": return "\ue226"; // -- Great cloud with sun/moon
+
+            case "04d": return "\uf0c2"; // Broken clouds
+            case "04n": return "\uf0c2"; // -- Full clouds
+
+            case "09d": return "\uef1e"; // Shower rain
+            case "09n": return "\uef1b"; // -- Rain with sun/moon
+            case "10d": return "\uef1e"; // Rain
+            case "10n": return "\uef1b"; // -- Rain with sun/moon
+            
+            case "11d": return "\ue208"; // Thunderstorm
+            case "11n": return "\ue208";
+            case "13d": return "\uf2dc"; // Snow
+            case "13n": return "\uf2dc";
+            case "50d": return "\ue303"; // Mist / haze
+            case "50n": return "\ue346";
     
-            default: return "?";
+            default: return "\ue226";
         }
     }
 }

@@ -35,14 +35,14 @@ Singleton {
     }
 
     function getAppIcon(name: string, fallback: string): string {
-        const icon = DesktopEntries.heuristicLookup(name)?.icon;
-        if (name.startsWith("steam_app_")) {
+        const fallbackIcon = fallback || "application-x-executable"
+        if (!name)
+            return Quickshell.iconPath(fallbackIcon)
+        if (name.startsWith("steam_app_"))
             return steamIconFromAppId(name)
-        }
-        else if (fallback !== "undefined") {
-            return Quickshell.iconPath(icon, fallback);
-        }
-        return Quickshell.iconPath(icon);
+
+        const icon = DesktopEntries.heuristicLookup(name)?.icon
+        return Quickshell.iconPath(icon || name, fallbackIcon)
     }
 
     function steamIconFromAppId(appId: string): string {
@@ -60,34 +60,29 @@ Singleton {
         return Quickshell.iconPath("application-x-executable");
     }
 
+    // GET/POST assíncrono. `success` recebe o corpo (JSON já decodificado
+    // quando possível); `error` recebe o corpo e o status HTTP (0 = sem rede).
     function fetch(options: var): void {
-        var xhr = new XMLHttpRequest()
+        const xhr = new XMLHttpRequest()
         xhr.open(options.method || "GET", options.url)
 
-        var headers = options.headers || {}
-        if (!headers["Content-Type"]) {
+        const headers = options.headers || {}
+        if (options.body && !headers["Content-Type"])
             xhr.setRequestHeader("Content-Type", "application/json")
-        }
-
-        for (var key in headers) {
+        for (const key in headers)
             xhr.setRequestHeader(key, headers[key])
-        }
 
         xhr.onreadystatechange = function () {
-            if (xhr.readyState === XMLHttpRequest.DONE) {
-                var response = xhr.responseText
-                try { response = JSON.parse(response) } catch (e) {}
+            if (xhr.readyState !== XMLHttpRequest.DONE)
+                return
 
-                if (xhr.status >= 200 && xhr.status < 300) {
-                    if (options.success) {
-                        options.success(response)
-                    }
-                } else {
-                    if (options.error) {
-                        options.error(response)
-                    }
-                }
-            }
+            let response = xhr.responseText
+            try { response = JSON.parse(response) } catch (e) {}
+
+            if (xhr.status >= 200 && xhr.status < 300)
+                options.success?.(response)
+            else
+                options.error?.(response, xhr.status)
         }
 
         xhr.send(options.body ? JSON.stringify(options.body) : null)

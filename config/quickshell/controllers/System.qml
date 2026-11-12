@@ -24,42 +24,19 @@ Singleton {
     property real memUsed
     property real memTotal
     readonly property real memPerc: memTotal > 0 ? memUsed / memTotal : 0
-    // STORAGE
-    property real storageUsed
-    property real storageTotal
-    property real storagePerc: storageTotal > 0 ? storageUsed / storageTotal : 0
-
-    // ?
-    property int refCount
 
     function formatKib(kib: real): var {
-        const mib = 1024;
-        const gib = 1024 ** 2;
-        const tib = 1024 ** 3;
-
-        if (kib >= tib)
-            return {
-                value: kib / tib,
-                unit: "TiB"
-            };
-        if (kib >= gib)
-            return {
-                value: kib / gib,
-                unit: "GiB"
-            };
-        if (kib >= mib)
-            return {
-                value: kib / mib,
-                unit: "MiB"
-            };
-        return {
-            value: kib,
-            unit: "KiB"
-        };
+        const units = ["KiB", "MiB", "GiB", "TiB"];
+        let value = kib;
+        let unit = 0;
+        while (value >= 1024 && unit < units.length - 1) {
+            value /= 1024;
+            unit++;
+        }
+        return { value: value, unit: units[unit] };
     }
 
     Timer {
-        //running: root.refCount > 0
         running: true
         interval: 3_000
         repeat: true
@@ -67,7 +44,6 @@ Singleton {
         onTriggered: {
             stat.reload();
             meminfo.reload();
-            storage.running = true;
             gpuUsage.running = true;
             sensors.running = true;
         }
@@ -100,49 +76,11 @@ Singleton {
         path: "/proc/meminfo"
         onLoaded: {
             const data = text();
-            root.memTotal = parseInt(data.match(/MemTotal: *(\d+)/)[1], 10) || 1;
-            root.memUsed = (root.memTotal - parseInt(data.match(/MemAvailable: *(\d+)/)[1], 10)) || 0;
-        }
-    }
-
-    Process {
-        id: storage
-
-        command: ["sh", "-c", "df | grep '^/dev/' | awk '{print $1, $3, $4}'"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const deviceMap = new Map();
-
-                for (const line of text.trim().split("\n")) {
-                    if (line.trim() === "")
-                        continue;
-
-                    const parts = line.trim().split(/\s+/);
-                    if (parts.length >= 3) {
-                        const device = parts[0];
-                        const used = parseInt(parts[1], 10) || 0;
-                        const avail = parseInt(parts[2], 10) || 0;
-
-                        // Only keep the entry with the largest total space for each device
-                        if (!deviceMap.has(device) || (used + avail) > (deviceMap.get(device).used + deviceMap.get(device).avail)) {
-                            deviceMap.set(device, {
-                                used: used,
-                                avail: avail
-                            });
-                        }
-                    }
-                }
-
-                let totalUsed = 0;
-                let totalAvail = 0;
-
-                for (const [device, stats] of deviceMap) {
-                    totalUsed += stats.used;
-                    totalAvail += stats.avail;
-                }
-
-                root.storageUsed = totalUsed;
-                root.storageTotal = totalUsed + totalAvail;
+            const total = parseInt(data.match(/MemTotal: *(\d+)/)?.[1] ?? "0", 10);
+            const available = parseInt(data.match(/MemAvailable: *(\d+)/)?.[1] ?? "0", 10);
+            if (total > 0) {
+                root.memTotal = total;
+                root.memUsed = Math.max(0, total - available);
             }
         }
     }
@@ -164,13 +102,15 @@ Singleton {
         stdout: StdioCollector {
             onStreamFinished: {
                 if (root.gpuType === "GENERIC") {
-                    const percs = text.trim().split("\n");
-                    const sum = percs.reduce((acc, d) => acc + parseInt(d, 10), 0);
-                    root.gpuPerc = sum / percs.length / 100;
+                    const percs = text.trim().split("\n")
+                        .map(d => parseInt(d, 10)).filter(d => !isNaN(d));
+                    const sum = percs.reduce((acc, d) => acc + d, 0);
+                    root.gpuPerc = percs.length > 0 ? sum / percs.length / 100 : 0;
                 } else if (root.gpuType === "NVIDIA") {
-                    const [usage, temp] = text.trim().split(",");
-                    root.gpuPerc = parseInt(usage, 10) / 100;
-                    root.gpuTemp = parseInt(temp, 10);
+                    // Com mais de uma GPU, usa a primeira linha.
+                    const [usage, temp] = text.trim().split("\n")[0].split(",");
+                    root.gpuPerc = (parseInt(usage, 10) || 0) / 100;
+                    root.gpuTemp = parseInt(temp, 10) || 0;
                 } else {
                     root.gpuPerc = 0;
                     root.gpuTemp = 0;

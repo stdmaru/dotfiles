@@ -1,418 +1,319 @@
-#!/bin/sh
-# Get params
+#!/usr/bin/env bash
+# Instala as dependências e liga as configurações deste repositório.
+# Uso: ./install.sh [-y]   (-y responde sim a tudo)
+
+#######################################
+############ Parâmetros ###############
+#######################################
 yes_to_all=0
 for param in "$@"; do
-    if [ "${param}" == "-y" ]; then
-        yes_to_all=1
-    fi
+    case "$param" in
+        -y|--yes) yes_to_all=1 ;;
+        -h|--help)
+            printf 'Uso: %s [-y]\n  -y, --yes   responde sim a todas as perguntas\n' "$0"
+            exit 0
+            ;;
+    esac
 done
 
-# Get sudo
-printf 'Acesso root necessário para instalar os pacotes.\n'
-command -v sudo &> /dev/null
-if [ ! $? -eq 0 ]; then
-    printf "${RED}Um pacote necessário (sudo) não foi encontrado no sistema. Tente novamente após instalar o pacote.${NC}\n"
-    exit 1
-fi
-sudo clear;
-
-printf "
-  _____        _    __ _ _           
- |  __ \      | |  / _(_) |          
- | |  | | ___ | |_| |_ _| | ___  ___ 
- | |  | |/ _ \| __|  _| | |/ _ \/ __|
- | |__| | (_) | |_| | | | |  __/\__ \\
- |_____/ \___/ \__|_| |_|_|\___||___/
-                                     
-\n"
 #######################################
-############ Helper functions #########
+############ Funções auxiliares #######
 #######################################
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
 CYAN='\033[0;36m'
-NC='\033[0m'  # No Color
+NC='\033[0m'
 HIDE_CURSOR='\033[?25l'
 SHOW_CURSOR='\033[?25h'
-message() {
-    local message_type="$1"
-    local message_text="$2"
 
-    case "$message_type" in
-        error)   printf "[${RED}FALHA!${NC}] %s\n" "$message_text" ;;
-        success) printf "[  ${GREEN}OK${NC}  ] %s\n" "$message_text" ;;
-        warning) printf "[ ${YELLOW}WARN${NC} ] %s\n" "$message_text" ;;
-        *)       printf "%s\n" "$message_text" ;;
+install_dir="$HOME/dotfiles"
+log_file="/dev/null"
+
+message() {
+    case "$1" in
+        error)   printf "[${RED}FALHA!${NC}] %s\n" "$2" ;;
+        success) printf "[  ${GREEN}OK${NC}  ] %s\n" "$2" ;;
+        warning) printf "[ ${YELLOW}WARN${NC} ] %s\n" "$2" ;;
+        *)       printf "%s\n" "$2" ;;
     esac
 }
 
+prompt() {
+    printf "${CYAN}%s${NC}" "$1"
+}
+
+# Pergunta sim/não; com -y, assume o padrão "sim".
+confirm() {
+    [ "$yes_to_all" = 1 ] && return 0
+    prompt "$1 [Y/n]: "
+    read -r answer
+    [ "$answer" != "n" ] && [ "$answer" != "N" ]
+}
+
+# Roda um comando mostrando uma animação; a saída vai para o log.
 status_message() {
-    local message_text="$1"
+    local text="$1"
     local command="$2"
 
-    message_length=${#message_text}
-    loading_animation="[      ]"
-
-    loading_animation() {
-        local count=0
-
-        while true; do
-            case $count in
-                0) printf "[ ${YELLOW}>${NC}    ] %s" "$message_text" ;;
-                1) printf "[ ${YELLOW}>>${NC}   ] %s" "$message_text" ;;
-                2) printf "[ ${YELLOW}>>>${NC}  ] %s" "$message_text" ;;
-                3) printf "[ ${YELLOW}>>>>${NC} ] %s" "$message_text"; count=-1;;
-            esac
-
-            sleep 0.25
-            count=$((count + 1))
-            printf "\r"
-        done
-    }
-
-    # Esconde o cursor
     printf "$HIDE_CURSOR"
+    (
+        local frames=("[ ${YELLOW}>${NC}    ]" "[ ${YELLOW}>>${NC}   ]" "[ ${YELLOW}>>>${NC}  ]" "[ ${YELLOW}>>>>${NC} ]")
+        local i=0
+        while true; do
+            printf "\r${frames[i]} %s" "$text"
+            i=$(( (i + 1) % 4 ))
+            sleep 0.25
+        done
+    ) &
+    local animation_pid=$!
 
-    # Inicia a animação em segundo plano
-    loading_animation &
-    animation_pid=$!
+    eval "$command" >> "$log_file" 2>&1
+    local status=$?
 
-    # Executa o comando
-    eval "$command" >> $install_dir/install.log 2>&1
-    command_status=$?
-
-    # Encerra a animação
-    kill $animation_pid
-    wait $animation_pid 2>/dev/null
-
-    # Restaura cursor
+    kill "$animation_pid" 2>/dev/null
+    wait "$animation_pid" 2>/dev/null
     printf "$SHOW_CURSOR"
 
-    if [ $command_status -eq 0 ]; then
-        printf "\r[  ${GREEN}OK${NC}  ] %s\n" "$message_text"
+    if [ $status -eq 0 ]; then
+        printf "\r[  ${GREEN}OK${NC}  ] %s\n" "$text"
     else
-        printf "\r[${RED}FALHA!${NC}] %s\n" "$message_text"
-        message "error" "A instalação não pôde ser finalizada. Confira o arquivo [$install_dir/install.log] para mais detalhes."
+        printf "\r[${RED}FALHA!${NC}] %s\n" "$text"
+        message error "A instalação não pôde ser finalizada. Confira o arquivo [$log_file] para mais detalhes."
         exit 1
     fi
 }
 
-prompt() {
-    message_text=$1
-    printf "${CYAN}$message_text${NC}"
-}
+trap 'printf "$SHOW_CURSOR"' EXIT
 
 #######################################
-############ Actual script ############
+############ Verificações #############
 #######################################
-# Get install dir
-install_dir="$HOME/dotfiles"
-if [ "${yes_to_all}" != 1 ]; then
-    prompt "Diretório de instalação: [$install_dir]: "
-
-    read directory
-    if [ -z "$directory" ]; then
-        directory=$install_dir
-    fi
-
-    if mkdir -p "$directory" && touch "$directory/foo.test" 2> /dev/null; then
-        rm "$directory/foo.test"
-        message "success" "Diretório de instalação definido em [$directory]."
-        install_dir="$directory"
-    else
-        message "error" "Você não possui permissões para escrever em [$directory]."
-        exit 1
-    fi
+if [ "$EUID" -eq 0 ]; then
+    message error "Não rode este script como root; ele pede o sudo quando precisa."
+    exit 1
 fi
 
+if ! command -v sudo > /dev/null 2>&1; then
+    message error "Um pacote necessário (sudo) não foi encontrado no sistema. Tente novamente após instalá-lo."
+    exit 1
+fi
 
-# Diretório atual do script
-distro_id="unknown"
-distro_name="unknown"
+printf "
+  _____        _    __ _ _
+ |  __ \\      | |  / _(_) |
+ | |  | | ___ | |_| |_ _| | ___  ___
+ | |  | |/ _ \\| __|  _| | |/ _ \\/ __|
+ | |__| | (_) | |_| | | | |  __/\\__ \\
+ |_____/ \\___/ \\__|_| |_|_|\\___||___/
+
+"
+
+printf 'Acesso root necessário para instalar os pacotes.\n'
+sudo -v || exit 1
 
 detect_distro() {
-    if [ ! -f /etc/os-release ]; then 
-        printf "O arquivo /etc/os-release não está disponível. Não é possível determinar a distribuição Linux.\n"
-        return 1
-    fi
-
-    source /etc/os-release
-    if [ -z "$ID" ]; then
-        printf "Não foi possível determinar a distribuição Linux.\n"
-        return 1
-    fi
-
-    distro_id=$ID
-    distro_name=$NAME
-
-    return 0
-}
-
-check_distro_compatibility() {
-    local compatible_distros=("arch")
-
-    for comp_distro in "${compatible_distros[@]}"; do
-        [ "$distro_id" = "$comp_distro" ] && return 0
-    done
-
-    printf "Você está usando uma distribuição incompatível com esse script: $distro_name\n"
-
+    [ -f /etc/os-release ] || return 1
+    # shellcheck disable=SC1091
+    . /etc/os-release
+    distro_name="${NAME:-desconhecida}"
+    case " ${ID:-} ${ID_LIKE:-} " in
+        *" arch "*) return 0 ;;
+    esac
     return 1
 }
 
 check_internet_connection() {
-    ping -c 1 google.com > /dev/null 2>&1 && return 0 || return 1;
+    curl -sfI --max-time 5 https://archlinux.org > /dev/null \
+        || ping -c 1 -W 3 archlinux.org > /dev/null
 }
 
-install_packages_arch() {
-    status_message "Atualizando mirrorlist..." "sudo pacman -Syy"
+#######################################
+############ Pacotes ##################
+#######################################
+# Só o que o Hyprland, o quickshell e as demais configurações usam.
+packages=(
+    # Sessão
+    hyprland
+    hyprshutdown                # SUPER+M encerra a sessão
+    xdg-desktop-portal-hyprland
+    xdg-desktop-portal-gtk
+    xdg-utils                   # xdg-open (clima, links)
+    polkit-gnome                # agente de autenticação
+    gnome-keyring
+    git
 
-    # Lista de pacotes a serem instalados
-    packages=(
-        polkit-gnome
-        gnome-keyring
-        libsecret
-        nautilus                    # File explorer
-#        pkg-config                  # eww build
-#        gcc                         # eww build
-#        cargo-nightly               # eww build
-#        libdbusmenu-gtk3            # eww build
-#        gtk3                        # eww runtime
-#        gtk-layer-shell             # eww runtime (wayland)
-#        socat                       # hyprland & eww req
-        hyprland                    # wayland wm
-        hyprpaper                   # wallpaper
-        nwg-look                    # theme selector
-        gnome-themes-extra          # Adwaita themes
-        breeze                      # Breeze themes
-        mesa
-        alacritty                   # Terminal Emulator
-        git                         # CORE
-        rofi-wayland                # Launcher
-        dunst                       # Notifications Popup
-        noto-fonts                  # Fonts
-        noto-fonts-cjk              # Unicode font / Japanese
-        ttf-vlgothic                # Unicode font / Japanese
-        ttf-font-awesome            # Font Awesome
-        nodejs                      # Eww Weather
-        npm                         # Eww Weather
-        pavucontrol                 # Eww Sound
-        alsa-utils                  # Eww Sound
-        slurp                       # Print Screen
-        grim                        # Print Screen
-        wl-clipboard                # Print Screen
-        zsh                         # Shell
-        jq                          # Json management
-        playerctl                   # Follow media playing
-        xdg-desktop-portal-gtk      # xdg
-        xdg-desktop-portal-hyprland # xdg
-        xdg-utils                   # xdg
-    )
+    # Quickshell e o que ele usa
+    quickshell
+    qt6-5compat                 # Qt5Compat.GraphicalEffects
+    qt6-svg
+    qt6-imageformats
+    networkmanager              # nmcli (página de rede)
+    pipewire                    # Quickshell.Services.Pipewire
+    pipewire-pulse
+    wireplumber                 # wpctl (teclas de volume)
+    lm_sensors                  # sensors (temperaturas da barra)
+    accountsservice             # foto do usuário na tela de bloqueio
+    libnotify                   # notify-send
+    playerctl                   # teclas de mídia
+    pavucontrol                 # botão do mixer
 
-    # Loop para instalar cada pacote
-    for package in "${packages[@]}"; do
-        status_message "Instalando pacote ${package}..." "sudo pacman -Sq --needed --noconfirm $package"
-    done
+    # Aplicativos e utilitários
+    alacritty                   # terminal
+    dolphin                     # gerenciador de arquivos
+    brightnessctl               # teclas de brilho
+    grim                        # captura de tela
+    slurp
+    wl-clipboard                # wl-copy
+    zsh
 
-    message "success" "Todas as dependências foram instalados com sucesso!"
-}
+    # Aparência
+    breeze                      # cursor Breeze_Light
+    breeze-gtk                  # tema GTK Breeze-Dark
+    breeze-icons
+    kde-gtk-config              # colorreload-gtk-module
+    plasma-integration          # QT_QPA_PLATFORMTHEME=kde
+    adwaita-icon-theme-legacy   # ícones do quickshell (AdwaitaLegacy)
 
-create_links() {
-    # Diretório de destino para os links simbólicos
-    source=$1
-    target=$2
+    # Fontes
+    cantarell-fonts             # fonte do quickshell
+    ttf-jetbrains-mono-nerd     # ícones Nerd Font
+    woff2-font-awesome          # Font Awesome 7
+    noto-fonts                  # fonte do GTK
+    noto-fonts-cjk              # japonês (workspaces)
+)
 
-    if [ -e "$source" ]; then
-        if [ -e "$target" ]; then
-            ## Prompt
-            if [ "${yes_to_all}" != 1 ]; then
-                prompt "Já existe uma configuração de ${FUNCNAME[1]} presente. Deseja substituir? [y/N]: "
-                read replace
-                if [ "${replace}" != "y" ]; then
-                    return;
-                fi
-            fi
-        fi
+# Pacotes do AUR; instalados só se houver um auxiliar (yay ou paru).
+aur_packages=(
+    waywallen                   # papel de parede
+)
 
-        directory=$(dirname $target)
-        status_message "Configurando ${FUNCNAME[1]}..." "rm -rf '$target'; mkdir -p '$directory'; ln -sf '$source' '$target'"
+install_packages() {
+    status_message "Atualizando a base de pacotes..." "sudo pacman -Sy --noconfirm"
+    status_message "Instalando ${#packages[@]} pacotes..." \
+        "sudo pacman -S --needed --noconfirm ${packages[*]}"
+
+    local helper=""
+    command -v paru > /dev/null 2>&1 && helper=paru
+    command -v yay > /dev/null 2>&1 && helper=yay
+    if [ -n "$helper" ]; then
+        status_message "Instalando pacotes do AUR (${aur_packages[*]})..." \
+            "$helper -S --needed --noconfirm ${aur_packages[*]}"
     else
-        message "error" "Configurações do alvo ${FUNCNAME[1]} não foram encontradas! [$source]"
+        message warning "Nenhum auxiliar do AUR (yay/paru) encontrado. Instale manualmente: ${aur_packages[*]}"
+    fi
+}
+
+#######################################
+############ Configurações ############
+#######################################
+# Substitui $2 por um link para $1 (pergunta antes, se já existir).
+link() {
+    local name="$1" source="$2" target="$3"
+
+    if [ ! -e "$source" ]; then
+        message error "Configurações de $name não foram encontradas! [$source]"
         exit 1
     fi
-}
 
-##### Fonts
-fonts() {
-    #font_dir=/usr/share/fonts/TTF/
-    font_dir=$HOME/.local/share/fonts/
-
-    mkdir -p "$font_dir"
-    status_message "Instalando fontes..." "cp -r '$install_dir/fonts/' '$font_dir'"
-}
-
-##### GTK3
-gtk3() {
-    source_dir="$install_dir/config/gtk-3.0"
-    target_dir="$HOME/.config/gtk-3.0"
-
-    create_links "$source_dir" "$target_dir"
-}
-
-##### Zsh
-zsh() {
-    source_dir="$install_dir/config/zsh"
-    target_dir="$HOME/.local/share/zsh"
-
-    create_links "$source_dir" "$target_dir"
-
-    status_message "Configurando zsh como shell padrão..." "sudo usermod -s /bin/zsh $USER"
-}
-
-zshrc() {
-    source_file="$install_dir/config/.zshrc"
-    target_file="$HOME/.zshrc"
-    
-    create_links "$source_file" "$target_file"
-}
-
-##### ~/.config/
-user_dirs() {
-    source_file="$install_dir/config/user-dirs.dirs"
-    target_file="$HOME/.config/user-dirs.dirs"
-
-    create_links "$source_file" "$target_file"
-}
-
-alacritty() {
-    source_dir="$install_dir/config/alacritty"
-    target_dir="$HOME/.config/alacritty"
-
-    create_links "$source_dir" "$target_dir"
-}
-
-hyprland() {
-    source_dir="$install_dir/config/hypr"
-    target_dir="$HOME/.config/hypr"
-
-    create_links "$source_dir" "$target_dir"
-}
-
-wallpaper() {
-    source_dir="$install_dir/wallpaper"
-    target_dir="$HOME/Imagens/wallpaper"
-    
-    create_links "$source_dir" "$target_dir"
-}
-
-#eww() {
-#    # build
-#    cd "$install_dir/eww/src"
-#    status_message "Compilando eww. Isso deve levar um tempo..." "cargo build --release --no-default-features --features=x11,wayland"
-#    status_message "Instalando eww..." "sudo install -vDm755 target/release/eww -t '/usr/bin/'"
-#    cd "$install_dir"
-#
-#    # setup links
-#    source_dir="$install_dir/config/eww"
-#    target_dir="$HOME/.config/eww"
-#
-#    create_links "$source_dir" "$target_dir"
-#}
-
-#rofi() {
-#    source_dir="$install_dir/config/rofi"
-#    target_dir="$HOME/.config/rofi"
-#
-#    create_links "$source_dir" "$target_dir"
-#}
-
-#dunst() {
-#    source_dir="$install_dir/config/dunst"
-#    target_dir="$HOME/.config/dunst"
-#
-#    create_links "$source_dir" "$target_dir"
-#}
-
-quickshell() {
-    source_dir="$install_dir/config/quickshell"
-    target_dir="$HOME/.config/quickshell"
-
-    create_links "$source_dir" "$target_dir"
-}
-
-##### Tasks
-pre_install() {
-    # Create and enters diretory
-    install_dir=$(readlink -f "$install_dir")
-    mkdir -p $install_dir
-    cd $install_dir
-
-    # Format to full path
-    install_dir=$(pwd)
-
-    # Reset logo file
-    echo "" > $install_dir/install.log
-
-    ## Prompt
-    message "warning" "Os arquivos de configurações serão instalados utilizando este diretório: [$install_dir]. Após a conclusão, não será possível mover o diretório para outra localização."
-    if [ "${yes_to_all}" != 1 ]; then
-        prompt "Deseja continuar? [Y/n]: "
-        read continue
-        if [ "$continue" == "n" ]; then
-            exit 0;
-        fi
+    if [ -L "$target" ] && [ "$(readlink -f "$target")" = "$(readlink -f "$source")" ]; then
+        message success "$name já configurado."
+        return
     fi
 
-    # Detect distro
-    status_message "Detectando distribuição linux..." "detect_distro"
-    status_message "Checando compatibilidade com distribuição..." "check_distro_compatibility"
-    message "success" "Você está usando uma distribuição compatível: $distro_name"
+    if [ -e "$target" ] || [ -L "$target" ]; then
+        confirm "Já existe uma configuração de $name em [$target]. Deseja substituir?" || return
+    fi
 
-    # Check internet connection
+    status_message "Configurando $name..." \
+        "rm -rf '$target' && mkdir -p '$(dirname "$target")' && ln -s '$source' '$target'"
+}
+
+install_fonts() {
+    local font_dir="$HOME/.local/share/fonts"
+    status_message "Instalando fontes do repositório..." \
+        "mkdir -p '$font_dir' && cp -r '$install_dir/fonts/.' '$font_dir/' && fc-cache -f"
+}
+
+install_configs() {
+    install_fonts
+    link "GTK 3"      "$install_dir/config/gtk-3.0"         "$HOME/.config/gtk-3.0"
+    link "user-dirs"  "$install_dir/config/user-dirs.dirs"  "$HOME/.config/user-dirs.dirs"
+    link "Alacritty"  "$install_dir/config/alacritty"       "$HOME/.config/alacritty"
+    link "Hyprland"   "$install_dir/config/hypr"            "$HOME/.config/hypr"
+    link "Quickshell" "$install_dir/config/quickshell"      "$HOME/.config/quickshell"
+    link "zsh"        "$install_dir/config/zsh"             "$HOME/.local/share/zsh"
+    link ".zshrc"     "$install_dir/config/.zshrc"          "$HOME/.zshrc"
+
+    # Chave e local do clima (fora do git), a partir do exemplo.
+    local secrets="$install_dir/config/hypr/secrets.lua"
+    [ -e "$secrets" ] || install -m 600 "$install_dir/config/hypr/secrets.lua.example" "$secrets"
+
+    # Preferências do quickshell (fora do git); o shell cria o arquivo.
+    mkdir -p "$install_dir/config/quickshell/userdata"
+
+    if [ "$(getent passwd "$USER" | cut -d: -f7)" != "/bin/zsh" ]; then
+        status_message "Configurando zsh como shell padrão..." "sudo usermod -s /bin/zsh '$USER'"
+    fi
+}
+
+#######################################
+############ Etapas ###################
+#######################################
+choose_install_dir() {
+    if [ "$yes_to_all" != 1 ]; then
+        prompt "Diretório de instalação [$install_dir]: "
+        read -r directory
+        [ -n "$directory" ] && install_dir="$directory"
+    fi
+
+    if ! mkdir -p "$install_dir" 2> /dev/null || [ ! -w "$install_dir" ]; then
+        message error "Você não possui permissões para escrever em [$install_dir]."
+        exit 1
+    fi
+    install_dir=$(readlink -f "$install_dir")
+    log_file="$install_dir/install.log"
+    : > "$log_file"
+    message success "Diretório de instalação definido em [$install_dir]."
+}
+
+pre_install() {
+    choose_install_dir
+    cd "$install_dir" || exit 1
+
+    message warning "As configurações serão ligadas a partir de [$install_dir]. Depois de instalar, não mova este diretório."
+    confirm "Deseja continuar?" || exit 0
+
+    if ! detect_distro; then
+        message error "Distribuição incompatível com este script: ${distro_name:-desconhecida}. Apenas Arch Linux e derivados."
+        exit 1
+    fi
+    message success "Distribuição compatível: $distro_name"
+
     status_message "Checando conexão com a internet..." "check_internet_connection"
 
-    case $distro_id in
-        arch)
-            install_packages_arch
-        ;;
-    esac
+    install_packages
 
-    # Verify existing files...
     if [ ! -d "$install_dir/.git" ]; then
-        status_message "Inicializando repositório..." "git init"
-        status_message "Adicionando repositório remoto..." "git remote add origin https://github.com/debelzak/dotfiles.git"
-        status_message "Baixando arquivos de repositório remoto..." "git fetch"
-        status_message "Fazendo checkout para branch principal..." "git reset origin/main --hard"
+        status_message "Baixando o repositório..." \
+            "git init -q && git remote add origin https://github.com/debelzak/dotfiles.git && git fetch -q origin && git reset -q --hard origin/main"
     fi
 
-    # Fetch git submodules
-    status_message "Inicializando submódulos git..." "git submodule init"
-    status_message "Atualizando submódulos git..." "git submodule update"
-}
-
-install() {
-    fonts
-    gtk3
-    user_dirs
-    alacritty
-    hyprland
-    wallpaper
-#    eww
-    quickshell
-    rofi
-    dunst
-    zsh
-    zshrc
+    # Só os submódulos em uso (plugins e tema do zsh).
+    status_message "Baixando plugins do zsh..." "git submodule update --init config/zsh"
 }
 
 post_install() {
-    echo -e "${GREEN}Instalação realizada com sucesso!${NC}";
-    echo -e "${GREEN}Inicialize a sessão com o comando: hyprland${NC}";
-    echo -e "${GREEN}Não se esqueça de adicionar suas informações em [~/.config/hypr/.env.conf] (Ref: ~/.config/hypr/.env.conf.example)${NC}";
+    if ! systemctl is-active --quiet NetworkManager; then
+        message warning "O NetworkManager não está ativo; a página de rede do shell depende dele (sudo systemctl enable --now NetworkManager)."
+    fi
+
+    printf "${GREEN}Instalação realizada com sucesso!${NC}\n"
+    printf "${GREEN}Inicie a sessão com o comando: Hyprland${NC}\n"
+    printf "${GREEN}Clima: preencha a chave e o local em [~/.config/hypr/secrets.lua].${NC}\n"
 }
 
 pre_install
-install
+install_configs
 post_install
 exit 0
