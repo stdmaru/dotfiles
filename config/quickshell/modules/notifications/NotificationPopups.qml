@@ -10,10 +10,6 @@ Item {
     required property Item attachedTo
 
     readonly property real padding: Math.min(10, listView.contentHeight)
-    readonly property real shoulderProgress: Config.notification_panel_emergence > 0
-        ? Math.min(1, Math.max(0, background.height
-            / (Config.notification_panel_emergence + background.bottomLeftRadius)))
-        : 0
 
     anchors.horizontalCenter: parent.horizontalCenter
     anchors.top: attachedTo.bottom
@@ -28,14 +24,14 @@ Item {
         }
     }
 
+    DockSilhouette {
+        anchors.fill: parent
+    }
+
     Rectangle {
         id: background
         anchors.fill: parent
-        color: Theme.crust
-        topLeftRadius: 0
-        topRightRadius: 0
-        bottomLeftRadius: Theme.radius_l
-        bottomRightRadius: Theme.radius_l
+        color: "transparent"
         clip: true
 
         ListView {
@@ -120,22 +116,5 @@ Item {
         }
     }
 
-    // Mesmos ombros curvos do painel, para a pilha de popups crescer a partir
-    // da barra em vez de surgir como um retângulo solto.
-    DockShoulder {
-        x: background.x - width
-        y: background.y
-        z: 2
-        progress: root.shoulderProgress
-        color: background.color
-    }
 
-    DockShoulder {
-        mirrored: true
-        x: background.x + background.width
-        y: background.y
-        z: 2
-        progress: root.shoulderProgress
-        color: background.color
-    }
 }

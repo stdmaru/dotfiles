@@ -66,6 +66,14 @@ PanelWindow {
       }
     }
 
+    DockSilhouette {
+      visible: root.attached && height > 0.5
+      x: panel.x
+      y: panel.y
+      width: panel.width
+      height: panel.height
+    }
+
     Rectangle {
       id: panel
 
@@ -79,11 +87,9 @@ PanelWindow {
       height: root.attached ? targetHeight * root.openProgress : targetHeight
       opacity: root.attached ? 1 : root.openProgress
       scale: root.attached ? 1 : 0.97 + 0.03 * root.openProgress
-      color: Theme.crust
-      topLeftRadius: root.attached ? 0 : Theme.radius_l
-      topRightRadius: root.attached ? 0 : Theme.radius_l
-      bottomLeftRadius: Theme.radius_l
-      bottomRightRadius: Theme.radius_l
+      // Preso à barra, o fundo é a silhueta desenhada atrás.
+      color: root.attached ? "transparent" : Theme.crust
+      radius: Theme.radius_l
       border.width: root.attached ? 0 : 1
       border.color: Theme.outline
       clip: true
@@ -308,21 +314,7 @@ PanelWindow {
       }
     }
 
-    // Ombros que unem o painel à barra, como no painel de notificações.
-    DockShoulder {
-      visible: root.attached && height > 0
-      x: panel.x - width
-      y: panel.y
-      progress: panel.height / (Config.notification_panel_emergence + Theme.radius_l)
-    }
 
-    DockShoulder {
-      mirrored: true
-      visible: root.attached && height > 0
-      x: panel.x + panel.width
-      y: panel.y
-      progress: panel.height / (Config.notification_panel_emergence + Theme.radius_l)
-    }
   }
 
   Connections {

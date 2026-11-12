@@ -21,12 +21,6 @@ Item {
         return true
     }
     property real expansionProgress: Notifications.trayOpen ? 1 : 0
-    // Mantém o ombro inteiro até o canto inferior alcançá-lo e então encolhe
-    // os dois juntos, aproximando a união suave entre barra e painel.
-    readonly property real shoulderProgress: Config.notification_panel_emergence > 0
-        ? Math.min(1, Math.max(0, background.height
-            / (Config.notification_panel_emergence + Config.notification_panel_corner_radius)))
-        : 0
 
     anchors.fill: parent
     visible: Notifications.trayOpen || expansionProgress > 0
@@ -55,6 +49,14 @@ Item {
         onClicked: Notifications.trayOpen = false
     }
 
+    DockSilhouette {
+        x: background.x
+        y: background.y
+        width: background.width
+        height: background.height
+        cornerRadius: Config.notification_panel_corner_radius
+    }
+
     Rectangle {
         id: background
 
@@ -65,13 +67,8 @@ Item {
         y: root.attachedBar.barBottom
         width: targetWidth
         height: targetHeight * Math.max(0, root.expansionProgress)
-        color: Theme.crust
-        // Cantos superiores retos; os ombros abaixo formam a transição
-        // convexa por onde o painel cresce a partir da barra.
-        topLeftRadius: 0
-        topRightRadius: 0
-        bottomLeftRadius: Config.notification_panel_corner_radius
-        bottomRightRadius: Config.notification_panel_corner_radius
+        // Só recorta o conteúdo; o fundo é a silhueta desenhada atrás.
+        color: "transparent"
         clip: true
         z: 1
 
@@ -289,20 +286,5 @@ Item {
         }
     }
 
-    DockShoulder {
-        x: background.x - width
-        y: background.y
-        z: 2
-        progress: root.shoulderProgress
-        color: background.color
-    }
 
-    DockShoulder {
-        mirrored: true
-        x: background.x + background.width
-        y: background.y
-        z: 2
-        progress: root.shoulderProgress
-        color: background.color
-    }
 }
