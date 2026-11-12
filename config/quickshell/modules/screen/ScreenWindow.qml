@@ -58,6 +58,14 @@ PanelWindow {
   Loader {
     anchors.fill: parent
     active: Config.frame_enabled
+    // Some no bloqueio junto com a barra, da qual a faixa de cima é o fundo.
+    opacity: !Session.locked || Session.barVisibleWhileLocked ? 1 : 0
+    visible: opacity > 0
+
+    Behavior on opacity {
+      NumberAnimation { duration: Config.motion_effect_ms; easing.type: Easing.OutCubic }
+    }
+
     sourceComponent: ScreenFrame {
       topBand: win.frameTop
     }
@@ -78,6 +86,7 @@ PanelWindow {
         id: bar
         parentWindow: win
         trayMenu: trayMenu
+        rightDocked: popups.docking
         visible: !Session.locked || Session.barVisibleWhileLocked
       }
 

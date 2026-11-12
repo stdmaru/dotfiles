@@ -15,6 +15,8 @@ Singleton {
     // Preso à barra ou, sem barra à vista, como cartão flutuante. Decidido
     // ao abrir para não mudar de forma no meio da animação.
     property bool attached: true
+    // Quanto do lançador está à mostra (0 a 1), para a barra acompanhar.
+    property real progress: 0
 
     function toggle(): void {
         if (root.open) {

@@ -30,6 +30,12 @@ Singleton {
     // da moldura.
     readonly property int bar_thickness: topbar_height - 2 * bar_margin
     readonly property int bar_margin: 5
+    // Recuo dos botões em relação à borda da barra.
+    readonly property int bar_padding: 3
+    // Raio dos botões: concêntrico com os cantos da barra flutuante, para os
+    // das pontas acompanharem a curva dela.
+    readonly property int bar_button_radius: frame_enabled
+        ? Theme.radius_s : Math.max(3, topbar_corner_radius - bar_padding)
     // Distância do topo da tela até a borda inferior da barra, de onde os
     // painéis brotam.
     readonly property int bar_bottom: frame_enabled ? bar_thickness : bar_margin + bar_thickness
@@ -37,7 +43,9 @@ Singleton {
     // tela, e as janelas ficam no recorte arredondado do meio.
     readonly property bool frame_enabled: Preferences.bar.frameEnabled
     readonly property int frame_thickness: Preferences.bar.frameThickness
-    readonly property int frame_corner_radius: Preferences.bar.frameCornerRadius
+    // Raio de todas as curvas: recorte da moldura e silhueta dos painéis.
+    readonly property int panel_curve: Preferences.bar.panelCurve
+    readonly property int frame_corner_radius: panel_curve
     readonly property int app_launcher_top_gap: 5
     readonly property int app_launcher_item_transition_ms: 180
 
@@ -60,9 +68,8 @@ Singleton {
     readonly property int ui_press_ms: motion_fast_effect_ms
     readonly property int ui_color_ms: motion_effect_ms
     readonly property int notification_panel_max_width: 750
-    readonly property int notification_panel_height: 590
-    readonly property int notification_panel_corner_radius: 18
-    readonly property int notification_panel_emergence: 30
+    readonly property int notification_panel_height: 595
+    readonly property int notification_panel_emergence: panel_curve
     readonly property int notification_panel_left_weight: 2
     readonly property int notification_panel_right_weight: 1
     readonly property int notification_panel_inset: 15

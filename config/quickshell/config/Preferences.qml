@@ -36,7 +36,9 @@ Singleton {
         // da tela. Desligado, a barra flutua.
         property bool frameEnabled: false
         property int frameThickness: 8
-        property int frameCornerRadius: 16
+        // Raio de todas as curvas: cantos do recorte da moldura e silhueta dos
+        // painéis que brotam da barra.
+        property int panelCurve: 30
         property bool workspacesShowAll: true
         property int workspacesMax: 7
         // "numbers", "roman" ou "japanese".
@@ -64,6 +66,9 @@ Singleton {
 
     readonly property QtObject notifications: QtObject {
         property bool doNotDisturb: false
+        // "center" ou "right".
+        property string popupPosition: "center"
+        property int popupWidth: 470
     }
 
     readonly property var groups: ({
@@ -119,8 +124,9 @@ Singleton {
                         { key: "frameThickness", type: "int", label: "Espessura da moldura", unit: "px",
                           description: "Laterais e base; o topo é a própria barra.",
                           min: 2, max: 24, step: 1, enabledWhen: "frameEnabled" },
-                        { key: "frameCornerRadius", type: "int", label: "Cantos do recorte", unit: "px",
-                          min: 0, max: 40, step: 2, enabledWhen: "frameEnabled" }
+                        { key: "panelCurve", type: "int", label: "Curvatura", unit: "px",
+                          description: "Raio de todas as curvas: os cantos do recorte da moldura e a silhueta dos painéis que brotam da barra (menus, lançador, bandeja e notificações).",
+                          min: 8, max: 48, step: 2 }
                     ]
                 },
                 {
@@ -221,6 +227,19 @@ Singleton {
                     settings: [
                         { key: "doNotDisturb", type: "bool", label: "Não perturbe",
                           description: "Guarda as notificações no painel sem exibir popups." }
+                    ]
+                },
+                {
+                    title: "Popups",
+                    settings: [
+                        { key: "popupPosition", type: "choice", label: "Posição",
+                          description: "Os popups descem da barra no centro ou encaixados no canto direito.",
+                          options: [
+                              { value: "center", label: "Centro" },
+                              { value: "right", label: "Direita" }
+                          ] },
+                        { key: "popupWidth", type: "int", label: "Largura", unit: "px",
+                          min: 320, max: 760, step: 10 }
                     ]
                 }
             ]

@@ -2,7 +2,7 @@ pragma ComponentBehavior: Bound
 
 import qs.config
 import qs.controllers
-import qs.modules.notifications
+import qs.components.common
 import Quickshell
 import Quickshell.Hyprland
 import Quickshell.Wayland
@@ -21,7 +21,16 @@ PanelWindow {
   // ou aplicativo em tela cheia).
   readonly property bool attached: Launcher.attached
   property int selectedIndex: 0
-  property real openProgress: Launcher.open && isTargetScreen ? 1 : 0
+  // Só anima depois que a janela aparece, senão a abertura começa invisível.
+  property real openProgress: Launcher.open && isTargetScreen && backingWindowVisible ? 1 : 0
+  onBackingWindowVisibleChanged: {
+    if (backingWindowVisible)
+      TooltipManager.raise()
+  }
+  onOpenProgressChanged: {
+    if (isTargetScreen)
+      Launcher.progress = openProgress
+  }
   readonly property string query: searchField.text.trim()
   readonly property bool commandMode: query.startsWith(">")
 
@@ -66,8 +75,13 @@ PanelWindow {
       }
     }
 
+    // Preso à barra, o lançador ocupa o canto superior esquerdo: a lateral
+    // esquerda se funde à moldura (ou continua reta a borda da barra, cujo
+    // canto se endireita) e a direita desce da barra numa rampa.
     DockSilhouette {
-      visible: root.attached && height > 0.5
+      visible: root.attached
+      leftEdge: Config.frame_enabled ? "border" : "flush"
+      rightEdge: "ramp"
       x: panel.x
       y: panel.y
       width: panel.width
@@ -80,13 +94,8 @@ PanelWindow {
       readonly property real targetHeight: Math.min(620, content.height - y - 24)
 
       width: Math.min(460, content.width - 24)
-      // Preso à barra, fica no canto esquerdo com folga para a rampa da
-      // silhueta não encostar no canto da barra (ou do recorte da moldura).
       x: root.attached
-        ? (Config.frame_enabled
-            ? Config.frame_thickness + Config.frame_corner_radius
-            : Config.topbar_corner_radius)
-          + Config.notification_panel_emergence + 5
+        ? (Config.frame_enabled ? Config.frame_thickness : Config.bar_margin)
         : (content.width - width) / 2
       y: root.attached ? Config.bar_bottom : Math.round(content.height * 0.14)
       height: root.attached ? targetHeight * root.openProgress : targetHeight

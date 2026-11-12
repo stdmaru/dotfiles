@@ -6,6 +6,7 @@ import Quickshell.Io
 import QtQuick
 import qs.config
 import qs.controllers
+import qs.components.common
 
 // Menu suspenso do canto direito da barra, com as páginas de rede, som e
 // energia. Este arquivo cuida apenas da janela: abrir/fechar, foco e a
@@ -146,8 +147,12 @@ PanelWindow {
             visible = true
 
             panelProgress = 0
-            panelAnimation.to = 1
-            panelAnimation.restart()
+            // A janela leva alguns ms para aparecer na primeira vez; animar
+            // antes disso deixaria o canto da barra reto sobre o nada.
+            if (backingWindowVisible)
+                startOpening()
+            else
+                openPending = true
 
             Qt.callLater(root.updatePanelContentHeight)
         } else {
@@ -164,10 +169,26 @@ PanelWindow {
         }
     }
 
+    property bool openPending: false
+
+    function startOpening(): void {
+        openPending = false
+        panelAnimation.to = 1
+        panelAnimation.restart()
+    }
+
+    onBackingWindowVisibleChanged: {
+        if (backingWindowVisible)
+            TooltipManager.raise()
+        if (backingWindowVisible && openPending && isOpen)
+            startOpening()
+    }
+
     function closeMenu(): void {
         if (!isOpen)
             return
         isOpen = false
+        openPending = false
         keyboardWanted = false
         panelAnimation.to = 0
         panelAnimation.restart()
@@ -252,18 +273,27 @@ PanelWindow {
         }
     }
 
+    // O menu ocupa o canto superior direito: a lateral direita se funde à
+    // moldura (ou continua reta a borda da barra, cujo canto se endireita) e
+    // a esquerda desce da barra numa rampa.
+    DockSilhouette {
+        x: panel.x
+        y: panel.y
+        width: panel.width
+        height: panel.height
+        leftEdge: "ramp"
+        rightEdge: Config.frame_enabled ? "border" : "flush"
+    }
+
     Rectangle {
         id: panel
-        // Alinhado à direita da barra ou, no modo moldura, do recorte.
-        x: root.width - root.panelWidth - (Config.frame_enabled ? Config.frame_thickness + 3 : 7)
-        y: root.barBottom + 4 + (1 - root.panelProgress) * -10
-        width: root.panelWidth - 2
+        x: root.width - root.panelWidth
+            - (Config.frame_enabled ? Config.frame_thickness : Config.bar_margin)
+        y: root.barBottom
+        width: root.panelWidth
         height: Math.min(root.panelContentHeight * root.panelProgress, root.maxPanelHeight)
-        radius: Theme.radius_l
-        color: Theme.crust
-        border.width: 1
-        border.color: Theme.outline
-        opacity: root.panelProgress
+        // Só recorta o conteúdo; o fundo é a silhueta desenhada atrás.
+        color: "transparent"
         clip: true
         Keys.onEscapePressed: root.closeMenu()
 
@@ -278,6 +308,7 @@ PanelWindow {
             anchors.fill: parent
             anchors.margins: 16
             clip: true
+            opacity: root.panelProgress
 
             // Página que está saindo durante a troca de aba.
             Loader {

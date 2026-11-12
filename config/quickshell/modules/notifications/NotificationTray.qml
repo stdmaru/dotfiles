@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 
 import qs.config
 import qs.controllers
+import qs.components.common as Common
 import QtQuick
 import QtQuick.Controls
 
@@ -49,12 +50,11 @@ Item {
         onClicked: Notifications.trayOpen = false
     }
 
-    DockSilhouette {
+    Common.DockSilhouette {
         x: background.x
         y: background.y
         width: background.width
         height: background.height
-        cornerRadius: Config.notification_panel_corner_radius
     }
 
     Rectangle {

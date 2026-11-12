@@ -3,7 +3,6 @@ pragma Singleton
 import qs.config
 import Quickshell
 import QtQuick
-import QtQuick.Controls
 
 Singleton {
     id: root
@@ -13,51 +12,32 @@ Singleton {
     property string activeText: ""
     property int delay: 350
 
-    ToolTip {
-        id: popup
+    // Posição do alvo na tela, capturada ao mostrar. A dica é desenhada pela
+    // TooltipLayer (modules/screen).
+    property rect anchorRect: Qt.rect(0, 0, 0, 0)
+    property bool shown: false
 
-        text: root.activeText
-        parent: root.displayTarget
-        delay: -1
-        timeout: -1
-        padding: 0
-        visible: false
-        closePolicy: Popup.NoAutoClose
-        x: root.displayTarget ? Math.round((root.displayTarget.width - width) / 2) : 0
-        y: root.displayTarget ? root.displayTarget.height + 7 : 0
-        implicitWidth: Math.min(320, Math.max(96, textMetrics.advanceWidth + 24))
-        implicitHeight: tooltipLabel.implicitHeight + 18
-        opacity: 0
+    // Enquanto verdadeiro, a camada da dica some por um instante.
+    property bool remapping: false
 
-        TextMetrics {
-            id: textMetrics
-            text: root.longestLine(root.activeText)
-            font.family: Theme.font_ui
-            font.pixelSize: 12
-            font.weight: Font.Medium
-        }
-
-        background: Rectangle {
-            radius: Theme.radius_s
-            color: Theme.mantle
-            opacity: 0.925
-            border.width: 1
-            border.color: Theme.outline
-        }
-
-        contentItem: Text {
-            id: tooltipLabel
-            text: root.activeText
-            width: popup.width - 24
-            color: Theme.text
-            font.family: Theme.font_ui
-            font.pixelSize: 12
-            font.weight: Font.Medium
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
-            wrapMode: Text.Wrap
-        }
+    // Um painel que surge depois da dica fica por cima dela (camadas da mesma
+    // altura empilham por ordem de criação). Recriar a camada a traz de volta
+    // para o topo. Chamado pelos painéis quando terminam de aparecer.
+    function raise(): void {
+        if (!root.shown)
+            return
+        root.remapping = true
+        remapTimer.restart()
     }
+
+    Timer {
+        id: remapTimer
+        interval: 20
+        onTriggered: root.remapping = false
+    }
+
+    // Opacidade da dica, animada aqui e aplicada pela TooltipLayer.
+    property real opacity: 0
 
     Timer {
         id: showTimer
@@ -70,15 +50,18 @@ Singleton {
                 return
             }
 
-            popup.opacity = 0
-            popup.visible = true
+            const target = root.activeTarget
+            const p = target.mapToItem(null, 0, 0)
+            root.anchorRect = Qt.rect(p.x, p.y, target.width, target.height)
+            root.opacity = 0
+            root.shown = true
             showAnimation.restart()
         }
     }
 
     NumberAnimation {
         id: showAnimation
-        target: popup
+        target: root
         property: "opacity"
         to: 1
         duration: 130
@@ -87,7 +70,7 @@ Singleton {
 
     NumberAnimation {
         id: hideAnimation
-        target: popup
+        target: root
         property: "opacity"
         to: 0
         duration: 100
@@ -95,7 +78,7 @@ Singleton {
         onFinished: {
             if (root.activeTarget)
                 return
-            popup.visible = false
+            root.shown = false
             root.displayTarget = null
         }
     }
@@ -107,14 +90,14 @@ Singleton {
         const sameTarget = root.activeTarget === target
         root.activeTarget = target
         root.activeText = String(text)
-        if (sameTarget && (showTimer.running || popup.visible))
+        if (sameTarget && (showTimer.running || root.shown))
             return
 
         showTimer.stop()
         showAnimation.stop()
         hideAnimation.stop()
-        popup.visible = false
-        popup.opacity = 0
+        root.shown = false
+        root.opacity = 0
         root.displayTarget = target
         showTimer.restart()
     }
@@ -128,7 +111,7 @@ Singleton {
         root.activeTarget = null
         showTimer.stop()
         showAnimation.stop()
-        if (!popup.visible) {
+        if (!root.shown) {
             root.displayTarget = null
             return
         }

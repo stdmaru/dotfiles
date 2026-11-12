@@ -30,6 +30,31 @@ Rectangle {
   implicitHeight: Config.frame_enabled ? Config.bar_thickness : Config.topbar_height
   height: implicitHeight
 
+  // Painel encaixado à direita além do menu do sistema (popups de
+  // notificação); definido por quem monta a barra.
+  property bool rightDocked: false
+
+  // Lançador aberto e preso a esta barra (canto esquerdo).
+  readonly property bool launcherDocked: Launcher.progress > 0 && Launcher.attached
+    && Launcher.screen === parentWindow.screen
+
+  // Cantos inferiores da barra flutuante: ficam retos enquanto há um painel
+  // encaixado embaixo deles, para a lateral do painel continuar a borda da
+  // barra.
+  DockedCorner {
+    id: leftCorner
+    docked: root.launcherDocked
+    radius: mainRect.radius
+  }
+
+  DockedCorner {
+    id: rightCorner
+    // O menu continua encaixado até terminar de recolher; os popups, até a
+    // pilha sumir.
+    docked: systemMenu.panelProgress > 0 || root.rightDocked
+    radius: mainRect.radius
+  }
+
   Behavior on systemTrayProgress {
     NumberAnimation {
       // Width is clipped during this transition; avoid the spatial curve's
@@ -67,13 +92,19 @@ Rectangle {
     anchors.margins: Config.frame_enabled ? 0 : Config.bar_margin
     color: Config.frame_enabled ? "transparent" : Theme.crust
     radius: Config.frame_enabled ? 0 : Config.topbar_corner_radius
+    // Cantos inferiores retos enquanto há um painel encaixado embaixo deles
+    // (lançador à esquerda; menu do sistema ou popups à direita), para a
+    // lateral do painel continuar a borda da barra. Viram 90° assim que o
+    // painel começa a abrir e só se arredondam depois que ele fecha.
+    bottomLeftRadius: leftCorner.value
+    bottomRightRadius: rightCorner.value
 
     RowLayout {
       anchors.fill: parent
-      anchors.margins: 3
+      anchors.margins: Config.bar_padding
       // Na moldura, os controles se alinham à borda do recorte.
-      anchors.leftMargin: Config.frame_enabled ? Config.frame_thickness : 3
-      anchors.rightMargin: Config.frame_enabled ? Config.frame_thickness : 3
+      anchors.leftMargin: Config.frame_enabled ? Config.frame_thickness : Config.bar_padding
+      anchors.rightMargin: Config.frame_enabled ? Config.frame_thickness : Config.bar_padding
 
       // LEFT
       Item {
@@ -258,5 +289,4 @@ Rectangle {
       }
     }
   }
-
 }

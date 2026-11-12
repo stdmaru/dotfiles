@@ -18,7 +18,7 @@ Button {
     rightPadding: 10
 
     background: Rectangle {
-        radius: 3
+        radius: Config.bar_button_radius
         color: (root.down || root.active) ? Theme.surface1 :
                root.hovered ? Theme.surface0 :
                "transparent"

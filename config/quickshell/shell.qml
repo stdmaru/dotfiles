@@ -46,6 +46,9 @@ ShellRoot {
     }
   }
 
+  // Dica dos controles da barra, acima dos painéis.
+  TooltipLayer {}
+
   Lock {}
 
   // Janela de configurações; só existe enquanto está aberta.

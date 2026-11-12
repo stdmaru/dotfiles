@@ -44,6 +44,8 @@ Row {
                 function openMenu(): void {
                     if (!item.modelData.hasMenu)
                         return
+                    // A dica do ícone ficaria por cima do menu.
+                    TooltipManager.hide(mouse)
                     const p = item.mapToItem(root.trayMenu, item.width / 2, item.height + 12)
                     root.trayMenu.open(item.modelData.menu, p.x, p.y)
                 }

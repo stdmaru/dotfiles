@@ -37,7 +37,7 @@ SwipeDelegate {
     readonly property bool popupActive: root.scene === "popup"
         && Notifications.indexOf(Notifications.popups, root.modelData) >= 0
     readonly property bool popupPointerInside: root.scene === "popup"
-        && popupPointerArea.containsMouse
+        && popupHover.hovered
 
     onPopupActiveChanged: {
         if (!popupActive) {
@@ -247,6 +247,7 @@ SwipeDelegate {
         id: popupHover
         target: root
         cursorShape: (root.pressed) ? Qt.ClosedHandCursor : Qt.PointingHandCursor
+        onHoveredChanged: root.syncPopupHover()
     }
 
     TapHandler {
@@ -702,20 +703,5 @@ SwipeDelegate {
             }
             
         }
-    }
-
-    // A no-button MouseArea provides a direct hover signal for layer-shell
-    // windows while leaving taps and action buttons available underneath.
-    MouseArea {
-        id: popupPointerArea
-        anchors.fill: parent
-        z: 100
-        visible: root.scene === "popup"
-        hoverEnabled: true
-        acceptedButtons: Qt.NoButton
-        propagateComposedEvents: true
-
-        onEntered: root.syncPopupHover()
-        onExited: root.syncPopupHover()
     }
 }

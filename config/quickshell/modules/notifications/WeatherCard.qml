@@ -17,7 +17,7 @@ Rectangle {
         return ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"][date.getDay()]
     }
 
-    height: 141
+    height: 146
     radius: Theme.radius_m
     color: weatherArea.pressed ? Theme.basePressed
         : weatherArea.containsMouse ? Theme.baseHover : Theme.base
@@ -34,34 +34,42 @@ Rectangle {
         onClicked: Weather.openInBrowser()
     }
 
-    Column {
+    function capitalized(text: string): string {
+        return text ? text.charAt(0).toUpperCase() + text.slice(1) : ""
+    }
+
+    function degrees(value: real): string {
+        return `${Math.round(value)}°`
+    }
+
+    Item {
+        id: content
         anchors.fill: parent
         anchors.margins: 10
-        spacing: 4
         z: 1
 
-        // Header, current conditions and forecast follow
-        // one vertical rhythm and fit inside this card.
-        Row {
+        // Cabeçalho: título e local.
+        Item {
             id: header
             width: parent.width
-            height: 15
-            spacing: 6
+            height: 16
 
             Text {
                 id: weatherTitle
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
                 text: "Clima"
                 font.family: Theme.font_display
                 font.pixelSize: 13
                 color: Theme.subtext0
-                verticalAlignment: Text.AlignVCenter
             }
 
             Text {
-                width: parent.width - weatherTitle.implicitWidth - parent.spacing
-                height: parent.height
+                anchors.left: weatherTitle.right
+                anchors.leftMargin: 12
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
                 horizontalAlignment: Text.AlignRight
-                verticalAlignment: Text.AlignVCenter
                 elide: Text.ElideRight
                 font.family: Theme.font_ui
                 font.pixelSize: 10
@@ -70,121 +78,149 @@ Rectangle {
             }
         }
 
-        Row {
-            id: currentConditions
+        // Condição atual: ícone, temperatura e descrição; máxima, mínima e
+        // sensação à direita.
+        Item {
+            id: current
+            anchors.top: header.bottom
+            anchors.topMargin: 6
             width: parent.width
-            height: 38
-            spacing: 8
-            topPadding: 8
-            
+            height: 44
+
             Text {
-                id: temperatureNow
-                width: 40
-                height: parent.height
+                id: currentGlyph
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                // Caixa fixa; o tamanho do ícone vem só do pixelSize.
+                width: 44
+                height: 44
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
                 font.family: Theme.font_nerd
-                font.pixelSize: 42
+                font.pixelSize: 48
                 color: Theme.sky
-
                 text: Weather.hasData ? Weather.glyph : "\ue226"
             }
 
             Column {
-                width: parent.width - temperatureNow.width - currentConditions.spacing
-                height: parent.height
-                spacing: 1
+                anchors.left: currentGlyph.right
+                anchors.leftMargin: 8
+                anchors.right: range.left
+                anchors.rightMargin: 8
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 0
 
                 Text {
-                    width: parent.width
-                    height: 21
-                    verticalAlignment: Text.AlignVCenter
                     font.family: Theme.font_display
-                    font.pixelSize: 20
+                    font.pixelSize: 24
                     color: Theme.text
-
                     text: Weather.hasData
-                        ? `${Weather.tempCurrent}${Config.temperature_metric}`
-                        : "--°C"
+                        ? `${Math.round(Weather.tempCurrent)}${Config.temperature_metric}`
+                        : `--${Config.temperature_metric}`
                 }
 
                 Text {
                     width: parent.width
-                    height: 16
-                    verticalAlignment: Text.AlignVCenter
                     elide: Text.ElideRight
                     font.family: Theme.font_ui
                     font.pixelSize: 11
                     color: Theme.subtext0
+                    text: Weather.hasData ? root.capitalized(Weather.description) : "Carregando clima…"
+                }
+            }
 
-                    text: Weather.hasData
-                        ? `${Weather.description} · sensação ${Weather.tempFeelsLike}${Config.temperature_metric}`
-                        : "Carregando clima…"
+            Column {
+                id: range
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                visible: Weather.hasData
+                spacing: 2
+
+                Row {
+                    anchors.right: parent.right
+                    spacing: 8
+
+                    Text {
+                        font.family: Theme.font_ui
+                        font.pixelSize: 11
+                        color: Theme.text
+                        text: `↑ ${root.degrees(Weather.tempMax)}`
+                    }
+
+                    Text {
+                        font.family: Theme.font_ui
+                        font.pixelSize: 11
+                        color: Theme.overlay1
+                        text: `↓ ${root.degrees(Weather.tempMin)}`
+                    }
+                }
+
+                Text {
+                    anchors.right: parent.right
+                    font.family: Theme.font_ui
+                    font.pixelSize: 10
+                    color: Theme.overlay1
+                    text: `Sensação ${root.degrees(Weather.tempFeelsLike)}`
                 }
             }
         }
 
+        // Previsão: cinco colunas iguais, dia, ícone e máxima/mínima.
         Row {
-            id: weatherForecast
+            id: forecastRow
+            anchors.top: current.bottom
+            anchors.topMargin: 8
+            anchors.bottom: parent.bottom
             width: parent.width
-            height: 54
-            spacing: 4
-            topPadding: 20
+
             Repeater {
                 model: Weather.forecast
 
                 delegate: Column {
+                    id: day
                     required property var modelData
                     required property int index
-                    width: (parent.width - 4 * 4) / 5
+
+                    width: forecastRow.width / Math.max(1, Weather.forecast.length)
+                    anchors.verticalCenter: parent.verticalCenter
                     spacing: 0
 
                     Text {
-                        width: parent.width
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                        height: 2
+                        anchors.horizontalCenter: parent.horizontalCenter
                         font.family: Theme.font_ui
-                        font.pixelSize: 9
-                        color: Theme.subtext0
-                        text: root.forecastDayName(parent.modelData, parent.index)
+                        font.pixelSize: 10
+                        color: day.index === 0 ? Theme.text : Theme.subtext0
+                        text: root.forecastDayName(day.modelData, day.index)
                     }
 
                     Text {
-                        width: parent.width
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
+                        anchors.horizontalCenter: parent.horizontalCenter
                         font.family: Theme.font_nerd
-                        height: 32
-                        font.pixelSize: 32
+                        // Os ícones de clima ocupam pouco do quadro da
+                        // fonte; a linha fica curta para não sobrar espaço.
+                        height: 24
+                        verticalAlignment: Text.AlignVCenter
+                        font.pixelSize: 34
                         color: Theme.sky
-                        text: parent.modelData.glyph
+                        text: day.modelData.glyph
                     }
 
                     Row {
-                        width: parent.width
-                        height: 2
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        spacing: 4
 
                         Text {
-                            width: parent.width / 2
-                            height: parent.height
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
                             font.family: Theme.font_ui
-                            font.pixelSize: 9
+                            font.pixelSize: 10
                             color: Theme.text
-                            text: `${parent.parent.modelData.max}°`
+                            text: root.degrees(day.modelData.max)
                         }
 
                         Text {
-                            width: parent.width / 2
-                            height: parent.height
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
                             font.family: Theme.font_ui
-                            font.pixelSize: 9
+                            font.pixelSize: 10
                             color: Theme.overlay1
-                            text: `${parent.parent.modelData.min}°`
+                            text: root.degrees(day.modelData.min)
                         }
                     }
                 }

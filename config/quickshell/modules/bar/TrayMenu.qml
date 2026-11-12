@@ -5,114 +5,123 @@ import QtQuick
 import QtQuick.Controls
 import qs.config
 
-Rectangle {
-    // Invisible window overlay to close if clicked outside
+import qs.components.common
+
+// Menu de contexto dos ícones da bandeja. Desce da barra como os demais
+// painéis: uma silhueta com rampas dos dois lados, centrada no ícone.
+Item {
     id: root
-    
+
     required property PanelWindow parentWindow
     property bool isOpen: false
     property real openX: 0
-    property real openY: 0
-    
+    // 0 = recolhido na barra, 1 = aberto.
+    property real progress: 0
+    // Altura do conteúdo, animada quando um submenu troca de tamanho.
+    property real contentHeight: menuStack.currentItem ? menuStack.currentItem.implicitHeight : 0
+    readonly property real contentWidth: Math.max(
+        menuStack.currentItem ? menuStack.currentItem.implicitWidth : 0, 150)
+
     width: parentWindow.screen.width
     height: parentWindow.screen.height
-
     visible: false
     z: 1
-    color: "transparent"
 
-    Rectangle {
-        // Actual menu window
-        id: menuContainer
-        property int minWidth: 150
+    Behavior on contentHeight {
+        enabled: root.progress === 1
+        NumberAnimation {
+            duration: Config.motion_spatial_ms
+            easing.type: Easing.BezierSpline
+            easing.bezierCurve: Config.motion_spatial_curve
+        }
+    }
 
-        color: Theme.mantle
-        radius: 6
-        z: 2
-        border.color: Theme.outline
-        border.width: 1
-        clip: true
+    // Alguns aplicativos (o Steam, por exemplo) entregam os itens do menu aos
+    // poucos. A abertura espera a altura parar de mudar por um instante, até
+    // um limite, para não começar animando um menu vazio.
+    Timer {
+        id: settleTimer
+        interval: 60
+        onTriggered: root.startOpening()
+    }
+    Timer {
+        id: settleLimit
+        interval: 400
+        onTriggered: root.startOpening()
+    }
+    onContentHeightChanged: {
+        if (settleLimit.running)
+            settleTimer.restart()
+    }
 
-        opacity: 0
-        visible: false
-        transformOrigin: Item.Top
-
-        states: [
-            State {
-                name: "open"
-                when: root.isOpen
-                PropertyChanges {
-                    target: menuContainer
-                    opacity: 1
-                    scale: 1
-                }
-            },
-            State {
-                name: "closed"
-                when: !root.isOpen
-                PropertyChanges {
-                    target: menuContainer
-                    opacity: 0
-                    scale: 1
-                }
-            }
-        ]
-
-        transitions: [
-            Transition {
-                from: "closed"
-                to: "open"
-
-                ParallelAnimation {
-                    NumberAnimation { properties: "opacity"; from: 0; to: 1; duration: Config.motion_effect_ms; easing.type: Easing.BezierSpline; easing.bezierCurve: Config.motion_effect_curve }
-                }
-            },
-
-            Transition {
-                from: "open"
-                to: "closed"
-
-                ParallelAnimation {
-                    NumberAnimation { properties: "opacity"; from: 1; to: 0; duration: Config.motion_effect_ms; easing.type: Easing.BezierSpline; easing.bezierCurve: Config.motion_effect_curve }
-                }
-
-                onRunningChanged: {
-                    if (!running && !root.isOpen) {
-                        menuContainer.visible = false
-                        root.visible = false
-                        menuStack.clear()
-                    }
-                }
-            }
-        ]
-
-
-        width: Math.max(menuStack.currentItem ? menuStack.currentItem.implicitWidth : 0, minWidth)
-        height: menuStack.currentItem ? menuStack.currentItem.implicitHeight : 0
-
-        // Centralizado no ponto de abertura, sem sair da tela.
-        x: Math.max(8, Math.min(root.width - width - 8, root.openX - width / 2))
-        y: root.openY
-
-        Behavior on height {
-            NumberAnimation {
-                duration: Config.motion_spatial_ms
-                easing.type: Easing.BezierSpline
-                easing.bezierCurve: Config.motion_spatial_curve
+    NumberAnimation {
+        id: progressAnimation
+        target: root
+        property: "progress"
+        duration: 280
+        easing.type: Easing.OutCubic
+        onFinished: {
+            if (!root.isOpen) {
+                root.visible = false
+                menuStack.clear()
             }
         }
+    }
 
-        // Close blocker
+    // Clique fora fecha; com botão direito, volta um nível do submenu.
+    MouseArea {
+        anchors.fill: parent
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
+        enabled: root.isOpen
+
+        onClicked: (mouseEvent) => {
+            if (mouseEvent.button === Qt.RightButton && menuStack.depth > 1)
+                menuStack.pop()
+            else
+                root.close()
+        }
+    }
+
+    DockSilhouette {
+        x: menuContainer.x
+        y: menuContainer.y
+        width: menuContainer.width
+        height: menuContainer.height
+    }
+
+    Item {
+        id: menuContainer
+
+        // As rampas saem para fora do painel; ele fica dentro da barra com
+        // folga para elas.
+        readonly property real edge: (Config.frame_enabled ? Config.frame_thickness : Config.bar_margin)
+            + Config.panel_curve * 2
+
+        width: root.contentWidth
+        height: root.contentHeight * root.progress
+        x: Math.max(edge, Math.min(root.width - width - edge, root.openX - width / 2))
+        y: Config.bar_bottom
+        clip: true
+        z: 2
+
+        // Consome cliques em áreas vazias do menu.
         MouseArea {
             anchors.fill: parent
-            acceptedButtons: Qt.LeftButton
+            acceptedButtons: Qt.LeftButton | Qt.RightButton
             hoverEnabled: true
-            onClicked: {}
+            onClicked: (mouseEvent) => {
+                if (mouseEvent.button === Qt.RightButton && menuStack.depth > 1)
+                    menuStack.pop()
+            }
         }
 
         StackView {
             id: menuStack
             initialItem: null
+            // O conteúdo fica no tamanho final enquanto o painel recortado cresce.
+            width: root.contentWidth
+            height: root.contentHeight
+            opacity: root.progress
 
             pushEnter: Transition {
                 ParallelAnimation {
@@ -169,7 +178,7 @@ Rectangle {
                     text: "\uf060"
                     font.family: Theme.font_awesome
                     font.pixelSize: 14
-                    color: "white"
+                    color: Theme.text
                 }
 
                 MouseArea {
@@ -217,7 +226,7 @@ Rectangle {
                             text: (item.checked) ? "\uf14a" : "\uf0c8"
                             font.family: Theme.font_awesome
                             font.pixelSize: 14
-                            color: "white"
+                            color: Theme.text
                         }
 
                         // Icon if applicable
@@ -242,7 +251,7 @@ Rectangle {
                             visible: !item.isSeparator
                             text: !item.isSeparator ? item.modelData.text : "------------------"
                             font.family: Theme.font_display
-                            color: (item.isEnabled ? "white" : Theme.overlay0)
+                            color: item.isEnabled ? Theme.text : Theme.overlay0
                         }
                     }
 
@@ -255,7 +264,7 @@ Rectangle {
                         text: "\uf0da"
                         font.family: Theme.font_awesome
                         font.pixelSize: 8
-                        color: "white"
+                        color: Theme.text
                     }
 
                     MouseArea {
@@ -281,7 +290,7 @@ Rectangle {
                         }
                         onEntered: () => {
                             if(!item.isEnabled) return
-                            item.color = Theme.outline
+                            item.color = Theme.surface0
                         }
                         onExited: () => {
                             item.color = "transparent"
@@ -306,38 +315,41 @@ Rectangle {
         MenuView {}
     }
 
-    MouseArea {
-        id: rootMouseArea
-        anchors.fill: parent
-        acceptedButtons: Qt.LeftButton | Qt.RightButton
-        enabled: root.isOpen
-
-        onClicked: (mouseEvent) => {
-            if(mouseEvent.button === Qt.RightButton && menuStack.depth > 1) {
-                menuStack.pop()
-            } else {
-                root.close()
-            }
-        }
+    function animateTo(target: real): void {
+        progressAnimation.stop()
+        progressAnimation.from = root.progress
+        progressAnimation.to = target
+        progressAnimation.start()
     }
 
-    function open(defaultMenuHandle: QsMenuHandle, x: int, y: int) {
+    function open(defaultMenuHandle: QsMenuHandle, x: int, y: int): void {
         root.openX = x
-        root.openY = y
-        root.visible = true
-        root.isOpen = true
-
         menuStack.clear()
         menuStack.push(menuComponent, {
             handle: defaultMenuHandle,
             isSubmenu: false
         })
-        menuContainer.visible = true
+        root.visible = true
+        root.isOpen = true
+        progressAnimation.stop()
+        settleTimer.restart()
+        settleLimit.restart()
     }
 
-    function close() {
-        if (!root.isOpen) return
+    function startOpening(): void {
+        settleTimer.stop()
+        settleLimit.stop()
+        if (root.isOpen)
+            animateTo(1)
+    }
+
+    function close(): void {
+        if (!root.isOpen)
+            return
         root.isOpen = false
+        settleTimer.stop()
+        settleLimit.stop()
+        animateTo(0)
     }
 
 }
