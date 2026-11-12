@@ -30,7 +30,7 @@ Item {
   Column {
     id: clockColumn
     anchors.horizontalCenter: parent.horizontalCenter
-    y: Math.round(parent.height * 0.24)
+    y: Math.round(parent.height * 0.09)
     spacing: 2
     opacity: root.ready ? 1 : 0
 
@@ -61,13 +61,9 @@ Item {
     }
   }
 
-  // Notificações e cartão de login seguem logo abaixo do relógio.
+  // Cartão de login no centro da tela, com as notificações logo acima.
   Loader {
-    anchors.top: clockColumn.bottom
-    anchors.topMargin: 32
-    anchors.left: parent.left
-    anchors.right: parent.right
-    anchors.bottom: parent.bottom
+    anchors.fill: parent
     active: root.showLogin
 
     sourceComponent: Item {
@@ -75,6 +71,8 @@ Item {
         id: strip
         width: loginCard.width
         anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: loginCard.top
+        anchors.bottomMargin: 18
         visible: root.ready && hasNotifications
         opacity: root.ready ? 1 : 0
       }
@@ -89,7 +87,7 @@ Item {
         height: cardColumn.implicitHeight + 48
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.horizontalCenterOffset: shakeOffset
-        y: strip.visible ? strip.height + 18 : 0
+        anchors.verticalCenter: parent.verticalCenter
         radius: Theme.radius_l
         color: "#e611111b"
         border.width: 1

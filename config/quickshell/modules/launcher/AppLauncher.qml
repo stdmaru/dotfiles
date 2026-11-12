@@ -10,14 +10,16 @@ import QtQuick
 import QtQuick.Controls
 
 // Lançador de aplicativos. No monitor principal ele brota da barra, como o
-// painel de notificações; nos demais aparece como um cartão flutuante.
+// painel de notificações; nos demais, ou sobre um aplicativo em tela cheia,
+// aparece como um cartão flutuante.
 PanelWindow {
   id: root
 
   required property ShellScreen targetScreen
   readonly property bool isTargetScreen: Launcher.screen === targetScreen
-  // Preso à barra (monitor principal) ou flutuante (demais monitores).
-  readonly property bool attached: Screens.isPrimary(targetScreen)
+  // Preso à barra, ou flutuante onde não há barra à vista (outros monitores
+  // ou aplicativo em tela cheia).
+  readonly property bool attached: Launcher.attached
   property int selectedIndex: 0
   property real openProgress: Launcher.open && isTargetScreen ? 1 : 0
   readonly property string query: searchField.text.trim()
