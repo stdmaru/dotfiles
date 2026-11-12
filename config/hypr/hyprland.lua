@@ -89,7 +89,9 @@ hl.on("hyprland.start", function ()
    hl.exec_cmd("waywallen --display-backend layer-shell --no-ui &")
    -- Keep the shell on Qt's Linux default renderer for an A/B check and log
    -- the actual scenegraph backend selected at startup.
-   hl.exec_cmd("env -u QSG_RHI_BACKEND QSG_INFO=1 quickshell -d")
+   -- text-input-v3 do Qt avisa a cada troca de foco entre superfícies do shell;
+   -- é ruído inofensivo, então a categoria fica silenciada.
+   hl.exec_cmd("env -u QSG_RHI_BACKEND QSG_INFO=1 quickshell -d --log-rules 'qt.qpa.wayland.textinput.warning=false'")
    hl.exec_cmd("/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1 &")
    hl.exec_cmd("/usr/bin/gnome-keyring-daemon --start --components=pkcs11,secrets,ssh,gpg")
 
