@@ -27,9 +27,13 @@ Singleton {
     // Definido pelo WlSessionLock quando o compositor garante o bloqueio.
     property bool surfaceSecure: false
 
-    // Com workspaces vazias e sem blur, a barra pode continuar visível.
-    readonly property bool barVisibleWhileLocked:
+    // Sem blur, o fundo fica à mostra depois que as workspaces vazias entram.
+    readonly property bool unblurredWhileLocked:
         Notifications.emptyWorkspaceOnLock && !Notifications.blurOnLock
+    // Barra e moldura continuam visíveis no bloqueio quando "Ocultar
+    // interface" está desligada (desfocadas, se houver blur). Com a workspace
+    // à mostra, essa opção é sempre desligada.
+    readonly property bool barVisibleWhileLocked: !Notifications.hideInterfaceOnLock
 
     // Emitido quando a sessão está bloqueada e pronta para receber a senha.
     signal lockedAndReady()
@@ -165,7 +169,7 @@ Singleton {
         // workspace vazia; um monitor sem workspace reservada ficaria exposto.
         const everyMonitorCovered = state.savedWorkspaces.every(entry =>
             root.lockWorkspaceFor(entry.monitor) > 0)
-        if (root.barVisibleWhileLocked && everyMonitorCovered)
+        if (root.unblurredWhileLocked && everyMonitorCovered)
             state.blurVisible = false
         root.markReady()
     }

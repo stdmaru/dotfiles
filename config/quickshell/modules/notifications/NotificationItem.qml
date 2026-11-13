@@ -356,11 +356,12 @@ SwipeDelegate {
                 }
 
                 Text {
-                    font.family: Theme.font_awesome
-                    font.pixelSize: 24
+                    font.family: Theme.font_nerd
+                    font.pixelSize: 43
                     anchors.centerIn: parent
-                    text: "\uf0f3"
+                    text: "\uf06a"
                     color: Theme.subtext0
+                    visible: !root.avatarSource && !root.modelData?.image
                 }
             }
 

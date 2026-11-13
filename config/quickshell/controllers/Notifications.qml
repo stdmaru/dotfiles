@@ -29,7 +29,8 @@ Singleton {
     property bool popupSuppressed: false
     readonly property bool lockScreenFullPrivacy: Preferences.lock.notificationPrivacy
     readonly property bool blurOnLock: Preferences.lock.blur
-    readonly property bool emptyWorkspaceOnLock: Preferences.lock.emptyWorkspace
+    readonly property bool emptyWorkspaceOnLock: Preferences.lock.hideWorkspace
+    readonly property bool hideInterfaceOnLock: Preferences.lock.hideInterface
     property bool trayOpen: false
     property bool persistenceStarted: false
     property bool persistenceAvailable: false

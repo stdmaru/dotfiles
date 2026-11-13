@@ -221,9 +221,9 @@ hl.animation({ leaf = "layersIn",      enabled = false,  speed = 4,    bezier = 
 hl.animation({ leaf = "layersOut",     enabled = false,  speed = 1.5,  bezier = "linear",       style = "fade" })
 hl.animation({ leaf = "fadeLayersIn",  enabled = false,  speed = 1.79, bezier = "almostLinear" })
 hl.animation({ leaf = "fadeLayersOut", enabled = false,  speed = 1.39, bezier = "almostLinear" })
-hl.animation({ leaf = "workspaces",    enabled = true,  speed = 1.94, bezier = "almostLinear", style = "slide" })
-hl.animation({ leaf = "workspacesIn",  enabled = true,  speed = 1.21, bezier = "almostLinear", style = "slide" })
-hl.animation({ leaf = "workspacesOut", enabled = true,  speed = 1.94, bezier = "almostLinear", style = "slide" })
+hl.animation({ leaf = "workspaces",    enabled = true,  speed = 2, bezier = "almostLinear", style = "slide" })
+hl.animation({ leaf = "workspacesIn",  enabled = true,  speed = 1.5, bezier = "almostLinear", style = "slide" })
+hl.animation({ leaf = "workspacesOut", enabled = true,  speed = 2, bezier = "almostLinear", style = "slide" })
 hl.animation({ leaf = "zoomFactor",    enabled = true,  speed = 7,    bezier = "quick" })
 
 -- Ref https://wiki.hypr.land/Configuring/Basics/Workspace-Rules/
@@ -443,3 +443,24 @@ hl.window_rule({
     float = true,
 })
 
+hl.window_rule({
+    name = "wine-main-focus-fix",
+    match = {
+        class = "^archetype nolly x.exe$",
+        title = "^Archetype Nolly X$",
+        xwayland = true,
+    },
+    no_follow_mouse = true,
+    focus_on_activate = false,
+    no_initial_focus = true,
+})
+
+hl.window_rule({
+    name = "wine-dropdown-stay-focused",
+    match = {
+        class = "^archetype nolly x.exe$",
+        title = "^menu$",
+        xwayland = true,
+    },
+    stay_focused = true,
+})

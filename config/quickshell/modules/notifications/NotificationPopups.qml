@@ -52,28 +52,88 @@ Item {
             model: Notifications.popups
             interactive: false
             clip: true
-            spacing: 4
+            // O espaço entre cartões fica dentro de cada delegate (veja
+            // `gap`), para encolher junto com o cartão que sai.
+            spacing: 0
             cacheBuffer: 500
 
             delegate: Item {
                 id: popupDelegate
                 required property var modelData
-                // Deslocamento de entrada (1 → 0), animado em `add`: no
-                // centro o cartão desce da barra; à direita, entra pela borda
-                // da tela.
-                property real enterX: 0
-                property real enterY: 0
+                required property int index
+                // Entrada animada pelo próprio delegate, e não pela transição
+                // `add` do ListView: quando várias chegam juntas, cada nova
+                // desloca as anteriores e o ListView interrompe a transição
+                // delas no meio, deixando os cartões parados fora do lugar.
+                // No centro o cartão desce da barra; à direita, entra pela
+                // borda da tela. Deslocamentos vão de 1 a 0.
+                property real enterX: root.dockedRight ? 1 : 0
+                property real enterY: root.dockedRight ? 0 : 1
+                property real enterHeight: 0
+
+                // Espaço acima do cartão; o primeiro não tem. Some junto com o
+                // cartão quando ele sai, e cresce quando outro chega acima.
+                property real gap: index > 0 ? 4 : 0
+                readonly property real visibleGap: gap * Math.max(0, 1 - notification.exitProgress)
+
+                Behavior on gap {
+                    NumberAnimation {
+                        duration: Config.notification_panel_ms
+                        easing.type: Easing.BezierSpline
+                        easing.bezierCurve: Config.motion_spatial_curve
+                    }
+                }
 
                 width: listView.width
-                implicitHeight: notification.implicitHeight
-                height: notification.height
+                implicitHeight: notification.implicitHeight + gap
+                height: (visibleGap + notification.height) * enterHeight
+                opacity: 0
                 clip: true
+
+                Component.onCompleted: entryAnimation.start()
+
+                ParallelAnimation {
+                    id: entryAnimation
+
+                    NumberAnimation {
+                        target: popupDelegate
+                        property: "enterHeight"
+                        to: 1
+                        duration: Config.notification_panel_ms
+                        easing.type: Easing.BezierSpline
+                        easing.bezierCurve: Config.motion_spatial_curve
+                    }
+                    NumberAnimation {
+                        target: popupDelegate
+                        property: "enterX"
+                        to: 0
+                        duration: Config.notification_panel_ms
+                        easing.type: Easing.OutCubic
+                    }
+                    NumberAnimation {
+                        target: popupDelegate
+                        property: "enterY"
+                        to: 0
+                        duration: Config.notification_panel_ms
+                        easing.type: Easing.BezierSpline
+                        easing.bezierCurve: Config.motion_spatial_curve
+                    }
+                    NumberAnimation {
+                        target: popupDelegate
+                        property: "opacity"
+                        to: 1
+                        duration: Config.notification_fade_ms
+                        easing.type: Easing.BezierSpline
+                        easing.bezierCurve: Config.motion_effect_curve
+                    }
+                }
 
                 NotificationItem {
                     id: notification
                     scene: "popup"
                     modelData: popupDelegate.modelData
                     width: popupDelegate.width
+                    y: popupDelegate.visibleGap
 
                     // O recorte do fundo esconde o cartão fora do painel, então
                     // à direita ele parece vir de trás da borda da tela, e sai
@@ -83,40 +143,6 @@ Item {
                             + (root.dockedRight ? notification.exitProgress : 0))
                             * (popupDelegate.width + root.padding * 2)
                         y: -popupDelegate.enterY * notification.implicitHeight
-                    }
-                }
-            }
-
-            add: Transition {
-                ParallelAnimation {
-                    NumberAnimation {
-                        property: "height"
-                        from: 0
-                        duration: Config.notification_panel_ms
-                        easing.type: Easing.BezierSpline
-                        easing.bezierCurve: Config.motion_spatial_curve
-                    }
-                    NumberAnimation {
-                        property: "enterX"
-                        from: root.dockedRight ? 1 : 0
-                        to: 0
-                        duration: Config.notification_panel_ms
-                        easing.type: Easing.OutCubic
-                    }
-                    NumberAnimation {
-                        property: "enterY"
-                        from: root.dockedRight ? 0 : 1
-                        to: 0
-                        duration: Config.notification_panel_ms
-                        easing.type: Easing.BezierSpline
-                        easing.bezierCurve: Config.motion_spatial_curve
-                    }
-                    NumberAnimation {
-                        property: "opacity"
-                        from: 0
-                        duration: Config.notification_fade_ms
-                        easing.type: Easing.BezierSpline
-                        easing.bezierCurve: Config.motion_effect_curve
                     }
                 }
             }
@@ -140,14 +166,9 @@ Item {
                 }
             }
 
-            displaced: Transition {
-                NumberAnimation {
-                    properties: "y"
-                    duration: Config.notification_panel_ms
-                    easing.type: Easing.BezierSpline
-                    easing.bezierCurve: Config.motion_spatial_curve
-                }
-            }
+            // Sem transição `displaced`: cada cartão anima a própria altura ao
+            // entrar e sair, e a lista reposiciona os demais a cada quadro.
+            // Animar o y por cima disso fazia os cartões se sobreporem.
         }
     }
 

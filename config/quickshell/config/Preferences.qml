@@ -53,15 +53,31 @@ Singleton {
     }
 
     readonly property QtObject lock: QtObject {
-        // Ao bloquear, cada monitor vai para uma workspace vazia.
-        property bool emptyWorkspace: true
         property bool blur: true
+        // Ao bloquear, cada monitor vai para uma workspace vazia. Desligado, a
+        // workspace atual fica atrás do bloqueio, o que exige o desfoque.
+        property bool hideWorkspace: true
+        // Esconde a barra e a moldura enquanto bloqueado. Só vale com
+        // "Ocultar workspace" (sem ela, a interface sempre aparece).
+        property bool hideInterface: true
+        // Nome e foto do usuário no cartão de login.
+        property bool showUser: true
         // Notificações na tela de bloqueio só mostram o aplicativo.
         property bool notificationPrivacy: false
 
-        // Sem workspace vazia, os aplicativos ficariam visíveis atrás do
-        // bloqueio: o desfoque passa a ser obrigatório.
-        onEmptyWorkspaceChanged: if (!emptyWorkspace) blur = true
+        // Regras entre as opções: sem desfoque, a workspace tem de ser
+        // ocultada (os aplicativos ficariam à mostra); com a workspace à
+        // mostra, "Ocultar interface" não se aplica. Rodam a cada mudança e
+        // depois de ler o arquivo.
+        function enforceRules(): void {
+            if (!blur)
+                hideWorkspace = true
+            if (!hideWorkspace)
+                hideInterface = false
+        }
+
+        onBlurChanged: enforceRules()
+        onHideWorkspaceChanged: enforceRules()
     }
 
     readonly property QtObject notifications: QtObject {
@@ -123,7 +139,7 @@ Singleton {
                           description: "A barra vira a faixa de cima de uma moldura em volta da tela, e as janelas ficam no recorte arredondado do meio. Desligado, a barra flutua." },
                         { key: "frameThickness", type: "int", label: "Espessura da moldura", unit: "px",
                           description: "Laterais e base; o topo é a própria barra.",
-                          min: 2, max: 24, step: 1, enabledWhen: "frameEnabled" },
+                          min: 0, max: 24, step: 1, enabledWhen: "frameEnabled" },
                         { key: "frameCornerRadius", type: "int", label: "Curvatura da moldura", unit: "px",
                           description: "Cantos do recorte onde ficam as janelas.",
                           min: 0, max: 48, step: 1, enabledWhen: "frameEnabled" },
@@ -203,11 +219,21 @@ Singleton {
                 {
                     title: "Fundo",
                     settings: [
-                        { key: "emptyWorkspace", type: "bool", label: "Esconder aplicativos",
-                          description: "Ao bloquear, cada monitor vai para uma workspace vazia." },
                         { key: "blur", type: "bool", label: "Desfocar o fundo",
-                          description: "Obrigatório quando os aplicativos ficam visíveis.",
-                          enabledWhen: "emptyWorkspace" }
+                          description: "Desfoca o que fica atrás do bloqueio." },
+                        { key: "hideWorkspace", type: "bool", label: "Ocultar workspace",
+                          description: "Ao bloquear, cada monitor vai para uma workspace vazia. Desligado, os aplicativos da workspace atual ficam atrás do bloqueio, desfocados.",
+                          enabledWhen: "blur" },
+                        { key: "hideInterface", type: "bool", label: "Ocultar interface",
+                          description: "Some com a barra e a moldura enquanto a sessão está bloqueada.",
+                          enabledWhen: "hideWorkspace" }
+                    ]
+                },
+                {
+                    title: "Login",
+                    settings: [
+                        { key: "showUser", type: "bool", label: "Exibir usuário",
+                          description: "Mostra o nome e a foto do usuário no cartão de login." }
                     ]
                 },
                 {
@@ -354,6 +380,18 @@ Singleton {
             rewrite = true
         data = root.migrate(data)
 
+        // Nomes antigos da opção de workspace: "emptyWorkspace" (mesmo
+        // sentido) e "showWorkspace" (sentido inverso).
+        const lockData = data.lock
+        if (lockData && typeof lockData === "object" && lockData.hideWorkspace === undefined) {
+            if (typeof lockData.emptyWorkspace === "boolean")
+                lockData.hideWorkspace = lockData.emptyWorkspace
+            else if (typeof lockData.showWorkspace === "boolean")
+                lockData.hideWorkspace = !lockData.showWorkspace
+            // Grava já com o nome novo.
+            rewrite = true
+        }
+
         const unknown = {}
         for (const key of Object.keys(data)) {
             if (key !== "schemaVersion" && !(key in root.groups))
@@ -373,7 +411,18 @@ Singleton {
                     : root.coerce(setting, value, group[setting.key])
             }
         }
+        // Valores lidos do arquivo podem violar as regras entre opções.
+        root.lock.enforceRules()
         root.applying = false
+
+        // Regrava se algo lido foi corrigido (tipo, limite ou regra).
+        for (const category of root.categories) {
+            const stored = data[category.id] ?? ({})
+            for (const setting of root.settingsOf(category.id)) {
+                if (stored[setting.key] !== root.groups[category.id][setting.key])
+                    rewrite = true
+            }
+        }
 
         if (rewrite)
             saveTimer.restart()

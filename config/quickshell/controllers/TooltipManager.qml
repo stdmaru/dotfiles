@@ -17,23 +17,19 @@ Singleton {
     property rect anchorRect: Qt.rect(0, 0, 0, 0)
     property bool shown: false
 
-    // Enquanto verdadeiro, a camada da dica some por um instante.
-    property bool remapping: false
-
     // Um painel que surge depois da dica fica por cima dela (camadas da mesma
-    // altura empilham por ordem de criação). Recriar a camada a traz de volta
-    // para o topo. Chamado pelos painéis quando terminam de aparecer.
-    function raise(): void {
-        if (!root.shown)
-            return
-        root.remapping = true
-        remapTimer.restart()
-    }
-
-    Timer {
-        id: remapTimer
-        interval: 20
-        onTriggered: root.remapping = false
+    // altura empilham por ordem de criação). Em vez de recriá-la por cima,
+    // a dica atual some de vez; a próxima aparece quando o cursor entrar em
+    // outro controle (ou sair e voltar), já acima do painel. Chamado pelos
+    // painéis quando terminam de aparecer.
+    function dismiss(): void {
+        showTimer.stop()
+        showAnimation.stop()
+        hideAnimation.stop()
+        root.activeTarget = null
+        root.displayTarget = null
+        root.shown = false
+        root.opacity = 0
     }
 
     // Opacidade da dica, animada aqui e aplicada pela TooltipLayer.

@@ -3,7 +3,6 @@ pragma Singleton
 import qs.controllers
 import Quickshell
 import Quickshell.Hyprland
-import Quickshell.Io
 
 // Estado do lançador de aplicativos: aberto/fechado, em qual monitor e de
 // que forma ele aparece.
@@ -23,12 +22,9 @@ Singleton {
             close()
             return
         }
-        if (Session.locked || workspaceQuery.running)
+        if (Session.locked)
             return
-
-        // Pergunta ao Hyprland na hora: o estado de tela cheia em cache pode
-        // estar desatualizado.
-        workspaceQuery.running = true
+        root.show(Hyprland.focusedWorkspace?.hasFullscreen ?? false)
     }
 
     function close(): void {
@@ -43,21 +39,5 @@ Singleton {
         // Um aplicativo em tela cheia cobre a barra; brotar dela ficaria solto.
         root.attached = Screens.isPrimary(root.screen) && !fullscreen
         root.open = true
-    }
-
-    Process {
-        id: workspaceQuery
-        command: ["hyprctl", "activeworkspace", "-j"]
-        stdout: StdioCollector { id: workspaceOutput }
-
-        onExited: exitCode => {
-            let fullscreen = false
-            if (exitCode === 0) {
-                try {
-                    fullscreen = Boolean(JSON.parse(workspaceOutput.text).hasfullscreen)
-                } catch (e) {}
-            }
-            root.show(fullscreen)
-        }
     }
 }

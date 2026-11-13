@@ -179,7 +179,7 @@ PanelWindow {
 
     onBackingWindowVisibleChanged: {
         if (backingWindowVisible)
-            TooltipManager.raise()
+            TooltipManager.dismiss()
         if (backingWindowVisible && openPending && isOpen)
             startOpening()
     }

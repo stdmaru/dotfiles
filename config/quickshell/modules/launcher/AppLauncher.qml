@@ -24,8 +24,21 @@ PanelWindow {
   // Só anima depois que a janela aparece, senão a abertura começa invisível.
   property real openProgress: Launcher.open && isTargetScreen && backingWindowVisible ? 1 : 0
   onBackingWindowVisibleChanged: {
-    if (backingWindowVisible)
-      TooltipManager.raise()
+    if (backingWindowVisible) {
+      TooltipManager.dismiss()
+      listDelay.restart()
+    } else {
+      listDelay.stop()
+      listReady = false
+    }
+  }
+  // A lista só é montada depois que a janela já apareceu, para o clique
+  // abrir o lançador na hora; ela surge em seguida com um fade.
+  property bool listReady: false
+  Timer {
+    id: listDelay
+    interval: 16
+    onTriggered: root.listReady = true
   }
   onOpenProgressChanged: {
     if (isTargetScreen)
@@ -91,7 +104,7 @@ PanelWindow {
     Rectangle {
       id: panel
 
-      readonly property real targetHeight: Math.min(620, content.height - y - 24)
+      readonly property real targetHeight: Math.min(705, content.height - y - 24)
 
       width: Math.min(460, content.width - 24)
       x: root.attached
@@ -151,9 +164,14 @@ PanelWindow {
               font.pixelSize: 14
             }
           }
-          onAccepted: root.submitSearch()
+          onAccepted: root.submitSearch(false)
           Keys.onPressed: event => {
-            if (event.key === Qt.Key_Down || event.key === Qt.Key_Tab) {
+            // Ctrl+Enter: nova instância do item selecionado, mesmo aberto.
+            if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter)
+                && (event.modifiers & Qt.ControlModifier)) {
+              root.submitSearch(true)
+              event.accepted = true
+            } else if (event.key === Qt.Key_Down || event.key === Qt.Key_Tab) {
               root.moveSelection(1)
               event.accepted = true
             } else if (event.key === Qt.Key_Up || event.key === Qt.Key_Backtab) {
@@ -192,6 +210,16 @@ PanelWindow {
             }
           }
 
+          // Enquanto a lista é montada, logo após a janela aparecer.
+          Text {
+            anchors.centerIn: parent
+            visible: !root.listReady && !root.commandMode
+            text: "Carregando…"
+            color: Theme.overlay1
+            font.family: Theme.font_ui
+            font.pixelSize: 13
+          }
+
           ListView {
             id: appList
             anchors.fill: parent
@@ -199,6 +227,8 @@ PanelWindow {
             spacing: 2
             model: root.visibleApps
             currentIndex: root.selectedIndex
+            opacity: root.listReady ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
             boundsBehavior: Flickable.StopAtBounds
             ScrollBar.vertical: ScrollBar {
               policy: ScrollBar.AsNeeded
@@ -212,6 +242,7 @@ PanelWindow {
               required property string subtitle
               required property string icon
               required property bool running
+              required property bool newInstance
               required property int workspace
               width: appList.width
               height: 48
@@ -268,10 +299,10 @@ PanelWindow {
                   }
                 }
 
-                // Aplicativo em execução: mostra em qual workspace está.
+                // Em execução: mostra o workspace; nova instância: selo "+ nova".
                 Rectangle {
                   id: badge
-                  visible: appRow.running
+                  visible: appRow.running //|| appRow.newInstance
                   anchors.verticalCenter: parent.verticalCenter
                   width: badgeRow.implicitWidth + 14
                   height: 22
@@ -285,6 +316,7 @@ PanelWindow {
 
                     Rectangle {
                       anchors.verticalCenter: parent.verticalCenter
+                      visible: appRow.running
                       width: 6
                       height: 6
                       radius: 3
@@ -292,7 +324,18 @@ PanelWindow {
                     }
 
                     Text {
-                      text: appRow.workspace > 0
+                      anchors.verticalCenter: parent.verticalCenter
+                      visible: appRow.newInstance
+                      text: "\uf067"
+                      color: Theme.blue
+                      font.family: Theme.font_awesome
+                      font.weight: Font.Black
+                      font.pixelSize: 9
+                    }
+
+                    Text {
+                      text: appRow.newInstance ? "nova"
+                        : appRow.workspace > 0
                         ? (Config.workspaces_labels[appRow.workspace] ?? String(appRow.workspace))
                         : "ativo"
                       color: Theme.text
@@ -320,7 +363,7 @@ PanelWindow {
           height: 16
           horizontalAlignment: Text.AlignHCenter
           verticalAlignment: Text.AlignVCenter
-          text: "↑↓ navegar  ·  Enter abrir  ·  > executar comando  ·  Esc fechar"
+          text: "↑↓ navegar  ·  Enter abrir  ·  Ctrl+Enter nova janela  ·  > comando  ·  Esc fechar"
           color: Theme.overlay0
           font.family: Theme.font_ui
           font.pixelSize: 10
@@ -348,52 +391,85 @@ PanelWindow {
       }
     }
   }
+  // Lista do lançador: primeiro as janelas abertas no monitor do lançador,
+  // depois os aplicativos instalados (os abertos em algum lugar primeiro).
+  // Aplicativos instalados, já com o ícone resolvido. Só muda quando a
+  // lista de .desktop muda, então reabrir o lançador não refaz o trabalho.
+  readonly property var installedApps: DesktopEntries.applications.values
+    .filter(entry => !entry.noDisplay)
+    .map(entry => ({
+      key: `installed:${entry.id}`,
+      name: entry.name,
+      subtitle: entry.genericName || entry.comment || "",
+      icon: Quickshell.iconPath(entry.icon, "application-x-executable"),
+      running: false,
+      newInstance: false,
+      workspace: 0,
+      entry,
+      toplevel: null
+    }))
+
   property var visibleApps: {
+    if (!root.listReady) return []
     const query = searchField.text.trim().toLocaleLowerCase()
     if (query.startsWith(">")) return []
-    const entries = DesktopEntries.applications.values
-    const windows = Hyprland.toplevels.values
-    const running = []
-    const runningKeys = new Set()
-    const runningIds = new Set()
+    const normalize = id => (id ?? "").toLowerCase().replace(/\.desktop$/, "")
+    const screenName = root.targetScreen?.name ?? ""
+    const windows = Hyprland.toplevels.values.filter(window =>
+      (window.monitor?.name ?? window.workspace?.monitor?.name ?? "") === screenName)
+
+    // Agrupa as janelas por aplicativo, uma linha por workspace.
+    const groups = new Map()
     for (const window of windows) {
       const appId = window.wayland?.appId ?? ""
       if (!appId) continue
-      const workspaceId = window.workspace?.id ?? 0
-      const key = `${appId.toLowerCase()}@${workspaceId}`
-      if (runningKeys.has(key)) continue
-      runningKeys.add(key)
       const entry = DesktopEntries.heuristicLookup(appId)
-      const normalizedId = appId.toLowerCase().replace(/\.desktop$/, "")
-      runningIds.add(normalizedId)
-      if (entry?.id)
-        runningIds.add(entry.id.toLowerCase().replace(/\.desktop$/, ""))
-      running.push({
-        key: `running:${key}`,
-        name: entry?.name ?? window.title ?? appId,
-        subtitle: entry?.genericName ?? window.title ?? "Em execução",
+      const groupId = entry?.id ? normalize(entry.id) : normalize(appId)
+      if (!groups.has(groupId))
+        groups.set(groupId, { entry, appId, rows: new Map() })
+      const workspaceId = window.workspace?.id ?? 0
+      const rows = groups.get(groupId).rows
+      if (rows.has(workspaceId)) continue
+      rows.set(workspaceId, {
+        key: `running:${groupId}@${workspaceId}`,
+        name: window.title || entry?.name || appId,
+        subtitle: entry?.name || entry?.genericName || "Em execução",
         icon: Utils.getAppIcon(appId, "application-x-executable"),
         running: true,
+        newInstance: false,
         workspace: workspaceId,
         entry,
         toplevel: window
       })
     }
-    running.sort((a, b) => a.name.localeCompare(b.name))
-    const installed = entries
-      .filter(entry => !entry.noDisplay)
-      .filter(entry => !runningIds.has(entry.id.toLowerCase().replace(/\.desktop$/, "")))
-      .map(entry => ({
-        key: `installed:${entry.id}`,
-        name: entry.name,
-        subtitle: entry.genericName || entry.comment || "",
-        icon: Quickshell.iconPath(entry.icon, "application-x-executable"),
-        running: false,
-        workspace: 0,
-        entry,
-        toplevel: null
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name))
+
+    const running = []
+    const runningEntryIds = new Set()
+    const sortedGroups = Array.from(groups.values()).sort((a, b) =>
+      (a.entry?.name ?? a.appId).localeCompare(b.entry?.name ?? b.appId))
+    for (const group of sortedGroups) {
+      running.push(...Array.from(group.rows.values()).sort((a, b) => a.workspace - b.workspace))
+      if (group.entry)
+        runningEntryIds.add(normalize(group.entry.id))
+    }
+
+    // Abertos em outros monitores vêm logo depois, antes dos demais.
+    const openElsewhere = new Set(Hyprland.toplevels.values
+      .map(window => DesktopEntries.heuristicLookup(window.wayland?.appId ?? "")?.id)
+      .filter(id => id)
+      .map(normalize))
+    const installed = root.installedApps
+      .map(app => {
+        // Já aberto neste monitor: abrir daqui cria outra janela.
+        if (!runningEntryIds.has(normalize(app.entry.id)))
+          return app
+        return Object.assign({}, app, { newInstance: true })
+      })
+      .sort((a, b) => {
+        const openA = openElsewhere.has(normalize(a.entry.id)) ? 0 : 1
+        const openB = openElsewhere.has(normalize(b.entry.id)) ? 0 : 1
+        return openA - openB || a.name.localeCompare(b.name)
+      })
     const allApps = running.concat(installed)
     if (!query) return allApps
     return allApps.filter(app =>
@@ -422,21 +498,39 @@ PanelWindow {
     appList.currentIndex = next
     appList.positionViewAtIndex(next, ListView.Contain)
   }
-  function activateApp(app: var): void {
+  function activateApp(app: var, forceNew: bool): void {
     Launcher.close()
+    if (forceNew && app.entry) {
+      launchNewInstance(app.entry)
+      return
+    }
     if (app.running && app.toplevel) {
       if (app.toplevel.workspace) app.toplevel.workspace.activate()
       Qt.callLater(() => app.toplevel.wayland?.activate())
       return
     }
+    if (app.newInstance && app.entry) {
+      launchNewInstance(app.entry)
+      return
+    }
     app.entry?.execute()
+  }
+  // Prefere a ação "nova janela" do .desktop (Firefox, VS Code...): só
+  // executar o aplicativo costuma apenas focar a janela já aberta.
+  function launchNewInstance(entry: var): void {
+    const action = (entry.actions ?? []).find(candidate =>
+      /new.*window|new.*instance/i.test(candidate.id) && !/private|incognito/i.test(candidate.id))
+    if (action)
+      action.execute()
+    else
+      entry.execute()
   }
   function activateKey(key: string): void {
     const app = visibleApps.find(candidate => candidate.key === key)
     if (app)
-      activateApp(app)
+      activateApp(app, false)
   }
-  function submitSearch(): void {
+  function submitSearch(forceNew: bool): void {
     const query = searchField.text.trim()
     if (query.startsWith(">")) {
       const command = query.slice(1).trim()
@@ -455,7 +549,7 @@ PanelWindow {
       const selectedApp = selectedIndex >= 0 && selectedIndex < visibleApps.length
         ? visibleApps[selectedIndex]
         : visibleApps[0]
-      activateApp(selectedApp)
+      activateApp(selectedApp, forceNew === true)
     }
   }
 }

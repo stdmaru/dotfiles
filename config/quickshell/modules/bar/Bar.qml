@@ -119,7 +119,7 @@ Rectangle {
             height: mainRect.height - 6
             contentItem: Label {
               font.family: Theme.font_nerd
-              font.pixelSize: 26
+              font.pixelSize: 32
               color: Theme.white
               //text: "\ue795" // terminal
               text: "\udb82\udcc7" // arch-icon
@@ -143,6 +143,28 @@ Rectangle {
                   Hyprland.activeToplevel.title.substring(0, 60) + "…" :
                   Hyprland.activeToplevel.title) : ""
             tooltip: Hyprland.activeToplevel?.title ?? ""
+
+            // Clique direito: menu contextual da janela em foco.
+            TapHandler {
+              acceptedButtons: Qt.RightButton
+              onTapped: (eventPoint, button) => {
+                const window = Hyprland.activeToplevel
+                if (!window)
+                  return
+                const point = parent.mapToItem(null, eventPoint.position.x, eventPoint.position.y)
+                TooltipManager.hide(parent)
+                ContextMenu.show(root.parentWindow.screen, point.x, point.y, [
+                  { text: "Fechar", icon: "\uf00d", danger: true, action: () => {
+                    if (window.wayland)
+                      window.wayland.close()
+                    else
+                      Hyprland.dispatch(Hyprland.usingLua
+                        ? `hl.dsp.window.close({ window = "address:${window.address}" })`
+                        : `closewindow address:${window.address}`)
+                  } }
+                ])
+              }
+            }
           }
         }
       }
@@ -160,7 +182,7 @@ Rectangle {
           Button {
             id: btn
             height: mainRect.height - 6
-            tooltip: (Weather.hasData) ? `${Weather.region}, ${Weather.state} - ${Weather.country}\nSensação Térmica — ${Weather.tempFeelsLike}${Config.temperature_metric}\n▲${Weather.tempMax}${Config.temperature_metric} ▼${Weather.tempMin}${Config.temperature_metric}\n\n${Weather.description}` : ""
+            tooltip: (Weather.hasData) ? `${Weather.region}, ${Weather.state} - ${Weather.country}\nSensação Térmica — ${Weather.tempFeelsLike}${Config.temperature_metric}\n▲ ${Weather.tempMax}${Config.temperature_metric} ▼ ${Weather.tempMin}${Config.temperature_metric}\n\n${Weather.description}` : ""
             onClicked: Weather.openInBrowser()
 
             contentItem: Row {

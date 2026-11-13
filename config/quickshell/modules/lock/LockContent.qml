@@ -132,6 +132,7 @@ Item {
           Rectangle {
             id: avatar
             anchors.horizontalCenter: parent.horizontalCenter
+            visible: Preferences.lock.showUser
             width: 76
             height: 76
             radius: 38
@@ -172,11 +173,20 @@ Item {
 
           Text {
             width: parent.width
+            visible: Preferences.lock.showUser
             text: Preferences.user.displayName || Quickshell.env("USER")
             color: Theme.text
             font.family: Theme.font_display
             font.pixelSize: 18
             horizontalAlignment: Text.AlignHCenter
+          }
+
+          // Sem foto e nome, equilibra a linha de status reservada embaixo
+          // para o campo de senha ficar centralizado no cartão.
+          Item {
+            width: parent.width
+            height: statusLine.height
+            visible: !Preferences.lock.showUser
           }
 
           TextField {
@@ -237,6 +247,7 @@ Item {
           }
 
           Text {
+            id: statusLine
             width: parent.width
             height: 16
             text: Session.authenticating ? "Validando…" : Session.error

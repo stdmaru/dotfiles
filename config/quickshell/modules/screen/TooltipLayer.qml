@@ -12,7 +12,7 @@ PanelWindow {
   id: tipWindow
 
   screen: Screens.primary
-  visible: TooltipManager.shown && !TooltipManager.remapping
+  visible: TooltipManager.shown
   color: "transparent"
   anchors {
     top: true
@@ -38,7 +38,7 @@ PanelWindow {
       Math.round(anchorRect.x + (anchorRect.width - width) / 2)))
     y: anchorRect.y + anchorRect.height + 7
     radius: Theme.radius_s
-    color: Qt.rgba(Theme.mantle.r, Theme.mantle.g, Theme.mantle.b, 0.925)
+    color: Qt.rgba(Theme.mantle.r, Theme.mantle.g, Theme.mantle.b, 0.975)
     border.width: 1
     border.color: Theme.outline
     opacity: TooltipManager.opacity

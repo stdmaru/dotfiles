@@ -238,10 +238,10 @@ Item {
 
           Text {
             anchors.centerIn: parent
-            text: "\uf0f3"
+            text: "\uf06a"
             color: Theme.text
-            font.family: Theme.font_awesome
-            font.pixelSize: 23
+            font.family: Theme.font_nerd
+            font.pixelSize: 36
             visible: !Notifications.lockScreenFullPrivacy
               && !lockNotificationItem.avatar
           }

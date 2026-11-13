@@ -142,16 +142,16 @@ Item {
 
                         Column {
                             anchors.centerIn: parent
-                            spacing: 10
                             visible: root.historyEmptyOrLeaving
                             opacity: visible ? 1 : 0
 
                             Text {
+                                height: 55
                                 anchors.horizontalCenter: parent.horizontalCenter
-                                font.family: Theme.font_awesome
-                                font.pixelSize: 24
+                                font.family: Theme.font_nerd
+                                font.pixelSize: 48
                                 color: Theme.subtext0
-                                text: "\uf0f3"
+                                text: "\udb84\udde5"
                             }
 
                             Text {

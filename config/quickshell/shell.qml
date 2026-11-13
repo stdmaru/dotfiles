@@ -21,6 +21,16 @@ import QtQuick
 // Ponto de entrada: apenas compõe os módulos. O estado vive nos singletons de
 // controllers/ e cada módulo desenha a sua parte.
 ShellRoot {
+  // Área de trabalho (clique direito abre o menu contextual).
+  Variants {
+    model: Quickshell.screens
+
+    DesktopLayer {
+      required property ShellScreen modelData
+      targetScreen: modelData
+    }
+  }
+
   // Barra, popups e painel (monitor principal) e moldura (todos).
   Variants {
     model: Quickshell.screens
@@ -48,6 +58,16 @@ ShellRoot {
 
   // Dica dos controles da barra, acima dos painéis.
   TooltipLayer {}
+
+  // Menu contextual (ContextMenu), acima de tudo.
+  Variants {
+    model: Quickshell.screens
+
+    ContextMenuLayer {
+      required property ShellScreen modelData
+      targetScreen: modelData
+    }
+  }
 
   Lock {}
 
