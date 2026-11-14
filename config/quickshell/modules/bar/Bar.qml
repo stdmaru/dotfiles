@@ -120,7 +120,7 @@ Rectangle {
             contentItem: Label {
               font.family: Theme.font_nerd
               font.pixelSize: 32
-              color: Theme.white
+              color: Theme.textStrong
               //text: "\ue795" // terminal
               text: "\udb82\udcc7" // arch-icon
               //text: "\uf40e" // Apps icon
@@ -191,14 +191,14 @@ Rectangle {
               Label {
                 font.family: Theme.font_nerd
                 font.pixelSize: 28
-                color: btn.active ? Theme.white : Theme.barText
+                color: btn.active ? Theme.textStrong : Theme.barText
                 text: (Weather.hasData) ? `${Weather.glyph}` : "\ue347"
               }
 
               Label {
                 font.family: Theme.font_display
                 font.pixelSize: btn.fontSize
-                color: btn.active ? Theme.white : Theme.barText
+                color: btn.active ? Theme.textStrong : Theme.barText
                 text: (Weather.hasData) ? `${Weather.tempCurrent}${Config.temperature_metric}` : "\uf141"
               }
             }
@@ -258,7 +258,7 @@ Rectangle {
             contentItem: Label {
               font.family: Theme.font_nerd
               font.pixelSize: 18
-              color: Theme.white
+              color: Theme.textStrong
               text: root.systemTrayCollapsed ? "\uf053" : "\uf054"
             }
             tooltip: root.systemTrayCollapsed ? "Expandir ícones da bandeja" : "Recolher ícones da bandeja"
@@ -272,7 +272,7 @@ Rectangle {
             contentItem: Label {
               font.family: Theme.font_awesome
               font.pixelSize: 16
-              color: Theme.white
+              color: Theme.textStrong
               text: "\uf6ff"
             }
             tooltip: Network.online ? `Rede (${Network.activeConnection})` : "Rede (desconectado)"
@@ -286,7 +286,7 @@ Rectangle {
             contentItem: Label {
               font.family: Theme.font_awesome
               font.pixelSize: 16
-              color: Theme.white
+              color: Theme.textStrong
               text: Audio.muted || Audio.volume <= 0 ? "\uf6a9"
                 : Audio.volume < 0.5 ? "\uf027" : "\uf028"
             }
@@ -301,7 +301,7 @@ Rectangle {
             contentItem: Label {
               font.family: Theme.font_awesome
               font.pixelSize: 16
-              color: Theme.white
+              color: Theme.textStrong
               text: "\uf011"
             }
             tooltip: "Energia e sessão"

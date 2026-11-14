@@ -39,7 +39,7 @@ Item {
     Text {
       anchors.horizontalCenter: parent.horizontalCenter
       text: Qt.formatDateTime(clock.date, "HH:mm")
-      color: Theme.white
+      color: Theme.wallpaperText
       font.family: Theme.font_display
       font.pixelSize: 104
       style: Text.Raised
@@ -52,7 +52,7 @@ Item {
         const now = clock.date
         return `${root.weekdays[now.getDay()]}, ${now.getDate()} de ${root.months[now.getMonth()]}`
       }
-      color: Theme.text
+      color: Theme.wallpaperSubtext
       font.family: Theme.font_ui
       font.pixelSize: 20
       font.weight: Font.DemiBold
@@ -89,7 +89,7 @@ Item {
         anchors.horizontalCenterOffset: shakeOffset
         anchors.verticalCenter: parent.verticalCenter
         radius: Theme.radius_l
-        color: "#e611111b"
+        color: Theme.alpha(Theme.crust, 0.9)
         border.width: 1
         border.color: Theme.outline
         opacity: root.ready ? 1 : 0

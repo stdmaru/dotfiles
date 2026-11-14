@@ -251,7 +251,7 @@ Item {
 
                             background: Rectangle {
                                 radius: Theme.radius_s
-                                color: clearButton.hovered && clearButton.enabled ? "#34232f" : Theme.base
+                                color: clearButton.hovered && clearButton.enabled ? Qt.tint(Theme.base, Theme.alpha(Theme.red, 0.12)) : Theme.base
 
                                 Behavior on color {
                                     ColorAnimation { duration: Config.ui_color_ms; easing.type: Easing.OutCubic }

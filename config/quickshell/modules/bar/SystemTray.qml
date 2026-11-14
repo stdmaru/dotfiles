@@ -1,5 +1,6 @@
 pragma ComponentBehavior: Bound
 
+import qs.config
 import qs.controllers
 import QtQuick
 import Quickshell
@@ -10,6 +11,12 @@ Row {
 
     required property PanelWindow parentWindow
     required property TrayMenu trayMenu
+
+    // Os ícones dos aplicativos são feitos para painel escuro. No tema claro,
+    // um shader troca o branco/cinza deles pela cor de texto do tema; ícones
+    // coloridos ficam como estão. Segue a luminosidade da barra, então anima
+    // junto com a troca de tema.
+    readonly property real recolor: Math.max(0, Math.min(1, (Theme.crust.hslLightness - 0.4) / 0.4))
 
     anchors.verticalCenter: parent.verticalCenter
     spacing: 5
@@ -33,6 +40,13 @@ Row {
                 smooth: true
                 mipmap: true
                 asynchronous: true
+
+                layer.enabled: root.recolor > 0
+                layer.effect: ShaderEffect {
+                    property real amount: root.recolor
+                    property color inkColor: Theme.textStrong
+                    fragmentShader: Quickshell.shellPath("shaders/trayicon-symbolic.frag.qsb")
+                }
             }
 
             MouseArea {

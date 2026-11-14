@@ -33,16 +33,22 @@ Item {
     }
 
     readonly property bool active: conditionHolds(setting.enabledWhen ?? "")
+    // Controles largos (o seletor de tema) ficam abaixo do rótulo, não ao lado.
+    readonly property bool wide: setting.type === "theme"
 
     visible: conditionHolds(setting.visibleWhen ?? "")
-    implicitHeight: Math.max(56, texts.implicitHeight + 24)
+    implicitHeight: wide
+        ? 16 + Math.max(texts.implicitHeight, controls.implicitHeight) + 16 + wideControl.implicitHeight + 18
+        : Math.max(56, texts.implicitHeight + 24)
 
     Column {
         id: texts
         anchors.left: parent.left
         anchors.right: controls.left
         anchors.rightMargin: 20
-        anchors.verticalCenter: parent.verticalCenter
+        anchors.verticalCenter: row.wide ? undefined : parent.verticalCenter
+        anchors.top: row.wide ? parent.top : undefined
+        anchors.topMargin: 16
         spacing: 3
         opacity: row.active ? 1 : 0.5
 
@@ -69,7 +75,9 @@ Item {
     Row {
         id: controls
         anchors.right: parent.right
-        anchors.verticalCenter: parent.verticalCenter
+        anchors.verticalCenter: row.wide ? undefined : parent.verticalCenter
+        anchors.top: row.wide ? parent.top : undefined
+        anchors.topMargin: 16
         spacing: 8
 
         // Volta ao padrão; só aparece quando o valor foi mudado.
@@ -101,11 +109,32 @@ Item {
 
         Loader {
             anchors.verticalCenter: parent.verticalCenter
+            active: !row.wide
             enabled: row.active
             sourceComponent: row.setting.type === "bool" ? toggleControl
                 : row.setting.type === "int" ? stepperControl
                 : row.setting.type === "choice" ? choiceControl
                 : textControl
+        }
+    }
+
+    Loader {
+        id: wideControl
+        anchors.left: parent.left
+        anchors.right: parent.right
+        y: 16 + Math.max(texts.implicitHeight, controls.implicitHeight) + 16
+        active: row.wide
+        enabled: row.active
+        sourceComponent: themeControl
+    }
+
+    Component {
+        id: themeControl
+
+        ThemePicker {
+            width: wideControl.width
+            value: row.value ?? ""
+            onSelected: value => row.commit(value)
         }
     }
 
@@ -167,7 +196,7 @@ Item {
             placeholderTextColor: Theme.overlay0
             color: Theme.text
             selectionColor: Theme.surface2
-            selectedTextColor: Theme.white
+            selectedTextColor: Theme.textStrong
             font.family: Theme.font_ui
             font.pixelSize: 13
             selectByMouse: true

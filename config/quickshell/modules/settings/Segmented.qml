@@ -45,7 +45,7 @@ Rectangle {
                     id: label
                     anchors.centerIn: parent
                     text: option.modelData.label
-                    color: option.current ? Theme.white : Theme.subtext0
+                    color: option.current ? Theme.textStrong : Theme.subtext0
                     font.family: Theme.font_ui
                     font.pixelSize: 12
                     font.weight: option.current ? Font.DemiBold : Font.Normal

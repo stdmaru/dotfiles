@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 
 import qs.config
+import qs.components.common
 import qs.controllers
 import qs.modules.bar
 import qs.modules.notifications
@@ -55,54 +56,59 @@ PanelWindow {
   ReservedEdge { targetScreen: win.modelData; edge: "right"; active: Config.frame_enabled; size: Config.frame_thickness }
   ReservedEdge { targetScreen: win.modelData; edge: "bottom"; active: Config.frame_enabled; size: Config.frame_thickness }
 
-  Loader {
+  // Moldura, barra e o que brota dela projetam uma sombra só.
+  ShadowLayer {
     anchors.fill: parent
-    active: Config.frame_enabled
-    // Some no bloqueio junto com a barra, da qual a faixa de cima é o fundo.
-    opacity: !Session.locked || Session.barVisibleWhileLocked ? 1 : 0
-    visible: opacity > 0
 
-    Behavior on opacity {
-      NumberAnimation { duration: Config.motion_effect_ms; easing.type: Easing.OutCubic }
+    Loader {
+      anchors.fill: parent
+      active: Config.frame_enabled
+      // Some no bloqueio junto com a barra, da qual a faixa de cima é o fundo.
+      opacity: !Session.locked || Session.barVisibleWhileLocked ? 1 : 0
+      visible: opacity > 0
+
+      Behavior on opacity {
+        NumberAnimation { duration: Config.motion_effect_ms; easing.type: Easing.OutCubic }
+      }
+
+      sourceComponent: ScreenFrame {
+        topBand: win.frameTop
+      }
     }
 
-    sourceComponent: ScreenFrame {
-      topBand: win.frameTop
-    }
-  }
+    Loader {
+      id: layerLoader
+      anchors.fill: parent
+      active: win.isPrimary
 
-  Loader {
-    id: layerLoader
-    anchors.fill: parent
-    active: win.isPrimary
+      sourceComponent: Item {
+        readonly property alias bar: bar
+        readonly property alias popups: popups
+        readonly property alias tray: tray
+        readonly property alias trayMenu: trayMenu
 
-    sourceComponent: Item {
-      readonly property alias bar: bar
-      readonly property alias popups: popups
-      readonly property alias tray: tray
-      readonly property alias trayMenu: trayMenu
+        Bar {
+          id: bar
+          parentWindow: win
+          trayMenu: trayMenu
+          rightDocked: popups.docking
+          visible: !Session.locked || Session.barVisibleWhileLocked
+        }
 
-      Bar {
-        id: bar
-        parentWindow: win
-        trayMenu: trayMenu
-        rightDocked: popups.docking
-        visible: !Session.locked || Session.barVisibleWhileLocked
-      }
+        NotificationPopups {
+          id: popups
+          attachedTo: bar
+        }
 
-      NotificationPopups {
-        id: popups
-        attachedTo: bar
-      }
+        NotificationTray {
+          id: tray
+          attachedBar: bar
+        }
 
-      NotificationTray {
-        id: tray
-        attachedBar: bar
-      }
-
-      TrayMenu {
-        id: trayMenu
-        parentWindow: win
+        TrayMenu {
+          id: trayMenu
+          parentWindow: win
+        }
       }
     }
   }

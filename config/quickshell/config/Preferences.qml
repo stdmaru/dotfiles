@@ -29,6 +29,16 @@ Singleton {
         property string terminal: "alacritty"
     }
 
+    readonly property QtObject appearance: QtObject {
+        // Id de um tema de Themes.qml.
+        property string theme: Themes.defaultId
+        // Sombra projetada pelas bordas da interface (moldura, barra e
+        // painéis) sobre a área das janelas.
+        property bool shadows: false
+        property int shadowOpacity: 70
+        property int shadowSize: 16
+    }
+
     readonly property QtObject bar: QtObject {
         property int height: 50
         property int cornerRadius: 12
@@ -89,6 +99,7 @@ Singleton {
 
     readonly property var groups: ({
         user: root.user,
+        appearance: root.appearance,
         bar: root.bar,
         behavior: root.behavior,
         lock: root.lock,
@@ -96,7 +107,7 @@ Singleton {
     })
 
     // Esquema exibido pela janela de configurações. Tipos: "bool", "int",
-    // "choice" e "text". `enabledWhen` e `visibleWhen` nomeiam uma chave
+    // "choice", "text" e "theme" (um tema de Themes.qml). `enabledWhen` e `visibleWhen` nomeiam uma chave
     // booleana da mesma categoria; `optionsFrom: "screens"` lista os monitores.
     readonly property var categories: [
         {
@@ -122,6 +133,33 @@ Singleton {
                         { key: "terminal", type: "text", label: "Terminal",
                           description: "Comando usado pelo lançador para apps de terminal.",
                           placeholder: "alacritty" }
+                    ]
+                }
+            ]
+        },
+        {
+            id: "appearance",
+            label: "Aparência",
+            glyph: "\uf53f",
+            description: "Cores e sombra do shell: barra, painéis, notificações e tela de bloqueio.",
+            sections: [
+                {
+                    title: "Tema",
+                    settings: [
+                        { key: "theme", type: "theme", label: "Tema de cores",
+                          description: "A troca é animada e vale na hora para todos os monitores." }
+                    ]
+                },
+                {
+                    title: "Sombra",
+                    settings: [
+                        { key: "shadows", type: "bool", label: "Sombra nas bordas",
+                          description: "A moldura, a barra e os painéis projetam uma sombra suave sobre as janelas." },
+                        { key: "shadowOpacity", type: "int", label: "Intensidade", unit: "%",
+                          min: 10, max: 100, step: 5, enabledWhen: "shadows" },
+                        { key: "shadowSize", type: "int", label: "Tamanho", unit: "px",
+                          description: "Até onde a sombra se espalha.",
+                          min: 4, max: 48, step: 2, enabledWhen: "shadows" }
                     ]
                 }
             ]
@@ -332,6 +370,8 @@ Singleton {
             if (setting.options && !setting.options.some(o => o.value === value))
                 return fallback
             return value
+        case "theme":
+            return typeof value === "string" && Themes.exists(value) ? value : fallback
         default:
             return typeof value === "string" ? value : fallback
         }

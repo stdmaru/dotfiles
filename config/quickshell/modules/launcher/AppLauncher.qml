@@ -79,7 +79,7 @@ PanelWindow {
     // barra, o lançador se comporta como os demais painéis.
     Rectangle {
       anchors.fill: parent
-      color: root.attached ? "transparent" : "#72090a12"
+      color: root.attached ? "transparent" : Theme.scrim
       opacity: root.openProgress
       MouseArea {
         anchors.fill: parent
@@ -91,14 +91,19 @@ PanelWindow {
     // Preso à barra, o lançador ocupa o canto superior esquerdo: a lateral
     // esquerda se funde à moldura (ou continua reta a borda da barra, cujo
     // canto se endireita) e a direita desce da barra numa rampa.
-    DockSilhouette {
+    ShadowLayer {
+      anchors.fill: parent
       visible: root.attached
-      leftEdge: Config.frame_enabled ? "border" : "flush"
-      rightEdge: "ramp"
-      x: panel.x
-      y: panel.y
-      width: panel.width
-      height: panel.height
+      clipToWorkArea: true
+
+      DockSilhouette {
+        leftEdge: Config.frame_enabled ? "border" : "flush"
+        rightEdge: "ramp"
+        x: panel.x
+        y: panel.y
+        width: panel.width
+        height: panel.height
+      }
     }
 
     Rectangle {

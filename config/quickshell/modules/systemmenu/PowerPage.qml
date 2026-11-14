@@ -26,11 +26,11 @@ Column {
 
         Repeater {
             model: [
-                { action: "lock", glyph: "", color: Theme.blue, label: "Bloquear sessão" },
-                { action: "logout", glyph: "", color: Theme.blue, label: "Encerrar sessão" },
-                { action: "suspend", glyph: "", color: Theme.yellow, label: "Suspender" },
-                { action: "reboot", glyph: "", color: Theme.green, label: "Reiniciar…" },
-                { action: "poweroff", glyph: "", color: Theme.red, label: "Desligar…" }
+                { action: "lock", glyph: "", color: "blue", label: "Bloquear sessão" },
+                { action: "logout", glyph: "", color: "blue", label: "Encerrar sessão" },
+                { action: "suspend", glyph: "", color: "yellow", label: "Suspender" },
+                { action: "reboot", glyph: "", color: "green", label: "Reiniciar…" },
+                { action: "poweroff", glyph: "", color: "red", label: "Desligar…" }
             ]
 
             delegate: ActionTile {
@@ -38,7 +38,7 @@ Column {
                 width: parent.width
                 height: 40
                 glyph: modelData.glyph
-                glyphColor: modelData.color
+                glyphColor: Theme[modelData.color]
                 label: modelData.label
                 onClicked: page.actionRequested(modelData.action)
             }

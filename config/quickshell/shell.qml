@@ -102,6 +102,18 @@ ShellRoot {
   }
 
   IpcHandler {
+    target: "theme"
+    function set(id: string): void { Preferences.set("appearance", "theme", id) }
+    function get(): string { return Preferences.appearance.theme }
+    // Passa para o próximo tema da lista.
+    function cycle(): void {
+      const themes = Theme.themes
+      const index = themes.findIndex(theme => theme.id === Preferences.appearance.theme)
+      Preferences.set("appearance", "theme", themes[(index + 1) % themes.length].id)
+    }
+  }
+
+  IpcHandler {
     target: "session"
     function lock(): void { Session.lock() }
     function suspend(): void { Session.suspend() }

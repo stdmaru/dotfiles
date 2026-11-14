@@ -56,7 +56,7 @@ Button {
             font.family: Theme.font_display
             font.pixelSize: root.fontSize
             font.weight: Font.Bold
-            color: root.active ? Theme.white : Theme.barText
+            color: root.active ? Theme.textStrong : Theme.barText
             verticalAlignment: Text.AlignVCenter
             horizontalAlignment: Text.AlignHCenter
         }

@@ -47,7 +47,7 @@ PanelWindow {
         Rectangle {
             id: backdrop
             anchors.fill: parent
-            color: "#aa080810"
+            color: Theme.scrimStrong
             opacity: root.progress
 
             MouseArea {

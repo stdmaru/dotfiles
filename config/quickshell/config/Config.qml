@@ -46,6 +46,10 @@ Singleton {
     readonly property int frame_corner_radius: Preferences.bar.frameCornerRadius
     // Raio das curvas da silhueta dos painéis (DockSilhouette).
     readonly property int panel_curve: Preferences.bar.panelCurve
+    // Sombra projetada pelas bordas da interface (ShadowLayer).
+    readonly property bool shadow_enabled: Preferences.appearance.shadows
+    readonly property real shadow_opacity: Preferences.appearance.shadowOpacity / 100
+    readonly property int shadow_size: Preferences.appearance.shadowSize
     readonly property int app_launcher_top_gap: 5
     readonly property int app_launcher_item_transition_ms: 180
 

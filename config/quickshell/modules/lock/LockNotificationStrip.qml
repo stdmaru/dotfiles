@@ -196,7 +196,7 @@ Item {
           id: notificationAvatar
           anchors.fill: parent
           radius: width / 2
-          color: "#ee181825"
+          color: Theme.alpha(Theme.mantle, 0.93)
           border.width: 1
           border.color: Theme.outline
           clip: true
@@ -384,7 +384,7 @@ Item {
       Rectangle {
         anchors.fill: parent
         radius: width / 2
-        color: "#ee181825"
+        color: Theme.alpha(Theme.mantle, 0.93)
         border.width: 1
         border.color: Theme.outline
 

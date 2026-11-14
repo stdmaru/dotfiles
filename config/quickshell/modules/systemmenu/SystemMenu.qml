@@ -276,13 +276,18 @@ PanelWindow {
     // O menu ocupa o canto superior direito: a lateral direita se funde à
     // moldura (ou continua reta a borda da barra, cujo canto se endireita) e
     // a esquerda desce da barra numa rampa.
-    DockSilhouette {
-        x: panel.x
-        y: panel.y
-        width: panel.width
-        height: panel.height
-        leftEdge: "ramp"
-        rightEdge: Config.frame_enabled ? "border" : "flush"
+    ShadowLayer {
+        anchors.fill: parent
+        clipToWorkArea: true
+
+        DockSilhouette {
+            x: panel.x
+            y: panel.y
+            width: panel.width
+            height: panel.height
+            leftEdge: "ramp"
+            rightEdge: Config.frame_enabled ? "border" : "flush"
+        }
     }
 
     Rectangle {
